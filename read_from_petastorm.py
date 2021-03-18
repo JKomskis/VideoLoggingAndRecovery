@@ -20,21 +20,24 @@ dataframe_metadata.schema = dataframe_columns
 
 storage_engine = PetastormStorageEngine()
 
-frames = pd.DataFrame(columns=list(['data', 'id']))
+frames = None
 for batch in storage_engine.read(dataframe_metadata):
     print(f'BATCH: {batch.frames.data[0].shape}')
-    frames = frames.append(batch.frames)
+    # print(f'{batch.frames.info()}')
+    if frames is None:
+        frames = batch.frames
+    else:
+        frames = frames.append(batch.frames)
 
 print(frames.columns)
-frames.sort_values(by='id')
+frames = frames.sort_values(by='id')
 
-print(type(frames.data[0]))
-width = frames.data[0].shape[1]
-height = frames.data[0].shape[0]
+width = frames.data.iloc[0].shape[1]
+height = frames.data.iloc[0].shape[0]
 fps = 30
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-output = cv2.VideoWriter(f'{video_name}_{length}.mp4', fourcc, fps, (width, height))
+output = cv2.VideoWriter(f'{video_name}.mp4', fourcc, fps, (width, height))
 
 for frame in frames.data:
     output.write(frame)
-output.release
+output.release()
