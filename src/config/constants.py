@@ -1,2 +1,3 @@
 PETASTORM_STORAGE_FOLDER = 'store'
 INPUT_VIDEO_FOLDER = 'data'
+TRANSACTION_STORAGE_FOLDER = 'transaction_storage'
