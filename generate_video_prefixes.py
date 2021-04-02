@@ -13,7 +13,7 @@ def init_argparse() -> argparse.ArgumentParser:
 def generate_prefixes(file_name: str) -> None:
     # Video prefix lengths, in minutes
     # video_prefix_lengths_min = [0.5, 1, 5, 10, 15, 20, 25, 30]
-    video_prefix_lengths_min = [0.5, 1]
+    video_prefix_lengths_min = [0.1, 0.5, 1]
     video_prefix_lengths_sec = [int(i * 60) for i in video_prefix_lengths_min]
 
     video_name = 'traffic001'

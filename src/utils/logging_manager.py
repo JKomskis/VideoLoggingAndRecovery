@@ -1,6 +1,7 @@
 import logging
 
 from enum import Enum
+import inspect
 
 
 class LoggingLevel(Enum):
@@ -25,8 +26,8 @@ class LoggingManager(object):
             cls._LOG = logging.getLogger(__name__)
             LOG_handler = logging.StreamHandler()
             LOG_formatter = logging.Formatter(
-                fmt='%(asctime)-15s [%(funcName)s():%(lineno)03d] '
-                '%(levelname)-5s: %(message)s',
+                fmt='%(asctime)-15s '
+                '%(levelname)-5s %(message)s',
                 datefmt='%m-%d-%Y %H:%M:%S'
             )
             LOG_handler.setFormatter(LOG_formatter)
@@ -35,16 +36,20 @@ class LoggingManager(object):
         return cls._instance
 
     def log(self, string, level: LoggingLevel = LoggingLevel.DEBUG):
+        func = inspect.currentframe().f_back.f_code
+        funcName = func.co_name
+        lineNo = inspect.currentframe().f_back.f_lineno
+        message = f'[{funcName}():{lineNo}] {string}'
         if level == LoggingLevel.DEBUG:
-            self._LOG.debug(string)
+            self._LOG.debug(message)
         elif level == LoggingLevel.INFO:
-            self._LOG.info(string)
+            self._LOG.info(message)
         elif level == LoggingLevel.WARNING:
-            self._LOG.warn(string)
+            self._LOG.warn(message)
         elif level == LoggingLevel.ERROR:
-            self._LOG.error(string)
+            self._LOG.error(message)
         elif level == LoggingLevel.CRITICAL:
-            self._LOG.critical(string)
+            self._LOG.critical(message)
 
     def setEffectiveLevel(self, level: LoggingLevel):
 

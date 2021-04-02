@@ -5,7 +5,7 @@ CS8803-DSI project that explores optimizing logging and recovery of video data i
 
 1. Create a virtualenv: `virtualenv venv`
 2. Activate the virtualenv: `source venv/bin/activate`
-3. Install Java, this can be done on Ubuntu with `sudo apt install default-jdk`.
+3. Install Java, this can be done on Ubuntu with `sudo apt install openjdk-8-jdk openjdk-8-jre`.
 
 ## Datasets
 

@@ -12,6 +12,8 @@ from pyspark.sql.types import IntegerType
 from src.catalog.models.df_metadata import DataFrameMetadata
 from src.models.storage.batch import Batch
 from src.readers.petastorm_reader import PetastormReader
+from src.pressure_point.pressure_point_manager import PressurePointManager
+from src.pressure_point.pressure_point import PressurePoint, PressurePointLocation, PressurePointBehavior
 from src.config.constants import \
     PETASTORM_STORAGE_FOLDER, \
     INPUT_VIDEO_FOLDER
@@ -22,11 +24,12 @@ class PetastormStorageEngine():
         spark_conf.setMaster('local')
         spark_conf.setAppName('VLR')
         spark_conf.set('spark.logConf', 'true')
-        spark_conf.set('spark.driver.memory', '1g')
+        spark_conf.set('spark.driver.memory', '2g')
         spark_conf.set('spark.sql.execution.arrow.pyspark.enabled', 'true')
 
         self.spark_session = SparkSession.builder.config(conf = spark_conf).getOrCreate()
         self.spark_context = self.spark_session.sparkContext  
+        self.spark_context.setLogLevel('ERROR')
 
     def _spark_url(self, table: DataFrameMetadata):
         """
@@ -76,7 +79,14 @@ class PetastormStorageEngine():
             rows_rdd = self.spark_context.parallelize(records.values) \
                 .map(lambda x: dict(zip(columns, x))) \
                 .map(lambda x: dict_to_spark_row(table.schema.petastorm_schema,
-                                                 x))
+                                                 x)) #\
+                #.map(lambda x: print('hi') if x.id == 100 else x)
+            if PressurePointManager().has_pressure_point(
+                PressurePoint(PressurePointLocation.PETASTORE_STORAGE_ENGINE_DURING_WRITE, PressurePointBehavior.EXCEPTION_AT_BEGINNING_OF_WRITE)):
+                rows_rdd = rows_rdd.map(lambda x: None)
+            elif PressurePointManager().has_pressure_point(
+                PressurePoint(PressurePointLocation.PETASTORE_STORAGE_ENGINE_DURING_WRITE, PressurePointBehavior.EXCPETION_DURING_WRITE)):
+                rows_rdd = rows_rdd.map(lambda x: None if x.id == 100 else x)
             self.spark_session.createDataFrame(rows_rdd,
                                                table.schema.pyspark_schema) \
                 .coalesce(1) \

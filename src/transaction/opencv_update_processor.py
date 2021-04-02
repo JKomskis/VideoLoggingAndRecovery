@@ -8,7 +8,8 @@ class OpenCVUpdateProcessor():
         self.function_map = {
             'grayscale': self._grayscale,
             'gaussian_blur': self._gaussian_blur,
-            'resize': self._resize
+            'resize': self._resize,
+            'test_filter': self._test_filter
         }
         pass
 
@@ -24,3 +25,6 @@ class OpenCVUpdateProcessor():
     
     def _resize(self, source_frame, object_update_arguments: ObjectUpdateArguments):
         return cv2.resize(source_frame, **object_update_arguments.kwargs)
+    
+    def _test_filter(self, source_frame, object_update_arguments: ObjectUpdateArguments):
+        return np.full(source_frame.shape, 255, dtype=np.uint8)
