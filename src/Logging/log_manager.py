@@ -44,12 +44,14 @@ class LogManager():
     #   int32
     def _write_log_record(self, record_type: LogRecordType, txn_id: int, fields: [bytes] = []) -> None:
         record_type = record_type.value.to_bytes(1, byteorder='little')
-        txn_id = txn_id.to_bytes(4, byteorder='little')
+        txn_id_bytes = txn_id.to_bytes(4, byteorder='little')
+
         last_lsn = (
             self.last_lsn[txn_id] if txn_id in self.last_lsn else 0
         ).to_bytes(4, byteorder='little')
+        self.last_lsn[txn_id] = self.log_file.tell()
 
-        record = record_type + txn_id + last_lsn
+        record = record_type + txn_id_bytes + last_lsn
         for field in fields:
             record += len(field).to_bytes(4, byteorder='little')
             record += field
@@ -59,14 +61,12 @@ class LogManager():
     # type of record, and length of record so we can quickly seek over it
     def log_begin_txn_record(self, txn_id: int) -> None:
         LoggingManager().log(f'Begin txn {txn_id}', LoggingLevel.DEBUG)
-        self.last_lsn[txn_id] = self.log_file.tell()
         self._write_log_record(LogRecordType.BEGIN, txn_id)
 
     def log_update_record(self, txn_id: int, name: str, before_path: str, after_path: str) -> None:
-        LoggingManager().log(f'Update, txn {txn_id} name {str} from {before_path} to {after_path}', LoggingLevel.DEBUG)
-        self.last_lsn[txn_id] = self.log_file.tell()
+        LoggingManager().log(f'Update, txn {txn_id} name {name} from {before_path} to {after_path}', LoggingLevel.DEBUG)
         self._write_log_record(LogRecordType.UPDATE, txn_id, [
-            name, before_path, after_path
+            name.encode("utf8"), before_path.encode("utf8"), after_path.encode("utf8")
         ])
         # write log record that includes txn id, name of video updated, path to before image, and path to after image
 
