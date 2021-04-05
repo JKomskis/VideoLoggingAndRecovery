@@ -72,21 +72,44 @@ class LogManager():
 
     def log_commit_txn_record(self, txn_id: int) -> None:
         LoggingManager().log(f'Commit txn {txn_id}', LoggingLevel.DEBUG)
-        self._write_log_record(LogRecordType.COMMIT, txn_id)
         self.log_file.flush()
+        self._write_log_record(LogRecordType.COMMIT, txn_id)
         del self.last_lsn[txn_id]
 
     def log_abort_txn_record(self, txn_id: int) -> None:
         LoggingManager().log(f'Abort txn {txn_id}', LoggingLevel.DEBUG)
-        self._write_log_record(LogRecordType.ABORT, txn_id)
         self.rollback_txn(txn_id)
+        self._write_log_record(LogRecordType.ABORT, txn_id)
         del self.last_lsn[txn_id]
 
     def rollback_txn(self, txn_id: int) -> None:
         LoggingManager().log(f'Rollback txn {txn_id}', LoggingLevel.DEBUG)
         # read log file and undo txn's changes
+        original_seek_offset = self.log_file.tell()
+        lsn = self.last_lsn[txn_id]
+        while lsn != 0:
+            self.log_file.seek(lsn)
+            entry_len = int.from_bytes(self.log_file.read(4), byteorder='little')
+            rest_of_entry = self.log_file.read(entry_len - 4)
+
+            record_type = LogRecordType(rest_of_entry[0])
+            read_txn_id = int.from_bytes(rest_of_entry[1:5], byteorder='little')
+            lsn = int.from_bytes(rest_of_entry[5:9], byteorder='little')
+            if record_type == LogRecordType.UPDATE:
+                name_len = int.from_bytes(rest_of_entry[9:13], byteorder='little')
+                before_pos = 13 + name_len
+                name = rest_of_entry[13:before_pos].decode('utf8')
+                before_len = int.from_bytes(rest_of_entry[before_pos:before_pos+4], byteorder='little')
+                after_pos = before_pos + 4 + before_len
+                before_path = rest_of_entry[before_pos+4:after_pos].decode('utf8')
+                after_len = int.from_bytes(rest_of_entry[after_pos:after_pos+4], byteorder='little')
+                after_path = rest_of_entry[after_pos+4:after_pos+4+after_len].decode('utf8')
+
+                LoggingManager().log(f'Reverting txn_id {read_txn_id} name {name} from {after_path} back to {before_path}', LoggingLevel.DEBUG)
+                # TODO: actually revert the update
+
+        self.log_file.seek(original_seek_offset)
         # May be able to use write_serialized_image in transaction_manger for doing this
-        pass
 
     def recover_log(self) -> None:
         # ARIES style three phase recovery protocol

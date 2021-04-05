@@ -183,5 +183,10 @@ class TransactionManagerTest(unittest.TestCase):
         ])
         self.assertEqual({3: 108}, self.log_mgr.last_lsn)
 
+    def test_rollback_txn(self):
+        self.log_mgr.log_begin_txn_record(4)
+        self.log_mgr.log_update_record(4, "traffic001.mp4", "txn_storage/1/0", "txn_storage/1/1")
+        self.log_mgr.log_abort_txn_record(4)
+
 if __name__ == '__main__':
     unittest.main()
