@@ -188,5 +188,9 @@ class TransactionManagerTest(unittest.TestCase):
         self.log_mgr.log_update_record(4, "traffic001.mp4", "txn_storage/1/0", "txn_storage/1/1")
         self.log_mgr.log_abort_txn_record(4)
 
+    def test_recover_log(self):
+        self.test_commit_record()
+        self.log_mgr.recover_log()
+
 if __name__ == '__main__':
     unittest.main()

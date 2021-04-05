@@ -111,21 +111,41 @@ class LogManager():
         self.log_file.seek(original_seek_offset)
         # May be able to use write_serialized_image in transaction_manger for doing this
 
+    # Two phase recovery protocol
+    # 1. Analysis
+    # Scan through each log record and add txn_id to self.last_lsn
+    # If commit or abort record found remove from self.last_lsn
+    # Commit or abort only written after all writing/rolling back done,
+    # so nothing to do for these transactions
+    # 2. Undo
+    # For every transaction in self.last_lsn, rollback the transaction
+    # Once each transaction is done, write an abort record to the log
+    # and delete their folder in the transaction_storage folder
+    # Once all rollbacks done, clear the last_lsn table
+    #   I think it should be sufficient to just call abort_txn here?
+    #   it does rollback, writes an abort record, and removes from LSN table
+    # Redo is not needed since updates immediately write their changes to the storage engine
     def recover_log(self) -> None:
-        # ARIES style three phase recovery protocol
-        # Analysis
-        # Scan through each log record and add txn_id to self.last_lsn
-        # If commit or abort record found remove from self.last_lsn
-        # Commit or abort only written after all writing/rolling back done,
-        # so nothing to do for these transactions
+        self.log_file.seek(0)
+        offset = 0
+        while True:
+            len_bytes = self.log_file.read(4)
+            if len(len_bytes) == 0:
+                break
+            entry_len = int.from_bytes(len_bytes, byteorder='little')
+            rest_of_entry = self.log_file.read(entry_len - 4)
 
-        # Redo
-        # This phase may not actually be needed, since updates immediately write
-        # their changes to the storage engine
+            record_type = LogRecordType(rest_of_entry[0])
+            read_txn_id = int.from_bytes(rest_of_entry[1:5], byteorder='little')
+            LoggingManager().log(f'Got type {record_type} txn_id {read_txn_id} at offset {offset}', LoggingLevel.DEBUG)
 
-        # Undo
-        # For every transaction in self.last_lsn, rollback the transaction
-        # Once each transaction is done, write an abort record to the log
-        # and delete their folder in the transaction_storage folder
-        # Once all rollbacks done, clear the last_lsn table
-        pass
+            self.last_lsn[read_txn_id] = offset
+            if record_type == LogRecordType.COMMIT or record_type == LogRecordType.ABORT:
+                del self.last_lsn[read_txn_id]
+
+            offset += entry_len
+            assert offset == self.log_file.tell()
+
+        LoggingManager().log(f'Txn active during crash: {self.last_lsn}', LoggingLevel.DEBUG)
+        for txn_id in list(self.last_lsn.keys()):
+            self.log_abort_txn_record(txn_id)
