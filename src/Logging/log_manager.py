@@ -2,6 +2,7 @@ import os
 from enum import Enum
 
 from src.config.constants import TRANSACTION_STORAGE_FOLDER
+from src.utils.logging_manager import LoggingLevel, LoggingManager
 
 class LogRecordType(Enum):
     UNKNOWN = 1
@@ -32,60 +33,57 @@ class LogManager():
     def __del__(self):
         self.log_file.close()
 
+    def flush(self):
+        self.log_file.flush()
+
+    # structure common to all log records:
+    #  length  record_type  txn_id  prev_lsn  [fields]
+    #  int32                 int32    int32
+    # where each field of fields is serialized as
+    #  length   data
+    #   int32
+    def _write_log_record(self, record_type: LogRecordType, txn_id: int, fields: [bytes] = []) -> None:
+        record_type = record_type.value.to_bytes(1, byteorder='little')
+        txn_id = txn_id.to_bytes(4, byteorder='little')
+        last_lsn = (
+            self.last_lsn[txn_id] if txn_id in self.last_lsn else 0
+        ).to_bytes(4, byteorder='little')
+
+        record = record_type + txn_id + last_lsn
+        for field in fields:
+            record += len(field).to_bytes(4, byteorder='little')
+            record += field
+        self.log_file.write((len(record) + 4).to_bytes(4, byteorder='little') + record)
+
     # each log record should include txn_id, offset of last log record for this txn,
     # type of record, and length of record so we can quickly seek over it
     def log_begin_txn_record(self, txn_id: int) -> None:
-        record_type = LogRecordType.BEGIN.value.to_bytes(1, byteorder='little')
-        txn_id = txn_id.to_bytes(4, byteorder='little')
-
+        LoggingManager().log(f'Begin txn {txn_id}', LoggingLevel.DEBUG)
         self.last_lsn[txn_id] = self.log_file.tell()
-
-        record = bytes(record_type) + bytes(txn_id)
-        self.log_file.write(record)
-        pass
+        self._write_log_record(LogRecordType.BEGIN, txn_id)
 
     def log_update_record(self, txn_id: int, name: str, before_path: str, after_path: str) -> None:
-        # write log record that includes txn id, name of video updated, path to before image, and path to after image
-        # format:
-        # type  txn_id  lengths  name  before_path  after_path
-        # where lengths is (len(name), len(before_path), len(after_path))
-        record_type = LogRecordType.UPDATE.value.to_bytes(1, byteorder='little')
-        txn_id = txn_id.to_bytes(4, byteorder='little')
-        name = name.encode('utf8')
-        name_len = len(name).to_bytes(4, byteorder='little')
-        before_path = before_path.encode('utf8')
-        before_path_len = len(before_path).to_bytes(4, byteorder='little')
-        after_path = after_path.encode('utf8')
-        after_path_len = len(after_path).to_bytes(4, byteorder='little')
-
+        LoggingManager().log(f'Update, txn {txn_id} name {str} from {before_path} to {after_path}', LoggingLevel.DEBUG)
         self.last_lsn[txn_id] = self.log_file.tell()
-
-        record = bytes(record_type) + bytes(txn_id) + bytes(name_len) + bytes(before_path_len) + bytes(after_path_len) + name + before_path + after_path
-        self.log_file.write(record)
-        pass
+        self._write_log_record(LogRecordType.UPDATE, txn_id, [
+            name, before_path, after_path
+        ])
+        # write log record that includes txn id, name of video updated, path to before image, and path to after image
 
     def log_commit_txn_record(self, txn_id: int) -> None:
-        record_type = LogRecordType.COMMIT.value.to_bytes(1, byteorder='little')
-        txn_id = txn_id.to_bytes(4, byteorder='little')
-
-        record = bytes(record_type) + bytes(txn_id)
-        self.log_file.write(record)
-
+        LoggingManager().log(f'Commit txn {txn_id}', LoggingLevel.DEBUG)
+        self._write_log_record(LogRecordType.COMMIT, txn_id)
+        self.log_file.flush()
         del self.last_lsn[txn_id]
-        pass
 
     def log_abort_txn_record(self, txn_id: int) -> None:
-        record_type = LogRecordType.ABORT.value.to_bytes(1, byteorder='little')
-        txn_id = txn_id.to_bytes(4, byteorder='little')
-
-        record = bytes(record_type) + bytes(txn_id)
-        self.log_file.write(record)
-
+        LoggingManager().log(f'Abort txn {txn_id}', LoggingLevel.DEBUG)
+        self._write_log_record(LogRecordType.ABORT, txn_id)
         self.rollback_txn(txn_id)
         del self.last_lsn[txn_id]
-        pass
 
     def rollback_txn(self, txn_id: int) -> None:
+        LoggingManager().log(f'Rollback txn {txn_id}', LoggingLevel.DEBUG)
         # read log file and undo txn's changes
         # May be able to use write_serialized_image in transaction_manger for doing this
         pass
