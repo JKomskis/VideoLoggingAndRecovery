@@ -5,6 +5,9 @@ import os
 from src.readers.abstract_reader import AbstractReader
 from src.utils.logging_manager import LoggingLevel, LoggingManager
 
+class GroupDoesNotExistException(Exception):
+    def __init__(self, group_dir):
+        super(GroupDoesNotExistException, self).__init__(group_dir)
 
 class PartitionedPetastormReader(AbstractReader):
     def __init__(self, *args, cur_shard=None, shard_count=None,
@@ -31,19 +34,28 @@ class PartitionedPetastormReader(AbstractReader):
 
         if self.shard_count is not None and self.shard_count <= 0:
             self.shard_count = None
+    
+    def _get_group_dir(self, group_num: int) -> str:
+        return self._get_group_url(group_num)[6:]
+    
+    def _get_group_url(self, group_num: int) -> str:
+        return f'{self.file_url}/group{group_num}'
 
     def _read(self) -> Iterator[Dict]:
         # `Todo`: Generalize this reader
         if(self.group_num == None):
             curr_group_num = 0
-            while os.path.isdir(f'{self.file_url}/group{curr_group_num}'[6:]): # ignore file:/ at beginning
+            while os.path.isdir(self._get_group_dir(curr_group_num)): # ignore file:/ at beginning
                 yield from self._read_group(curr_group_num)
                 curr_group_num = curr_group_num + 1
         else:
             yield from self._read_group(self.group_num)
     
     def _read_group(self, curr_group_num: int) -> Iterator[Dict]:
-        with make_reader(f'{self.file_url}/group{curr_group_num}',
+        group_dir = self._get_group_dir(curr_group_num)
+        if not os.path.isdir(group_dir):
+            raise GroupDoesNotExistException(group_dir)
+        with make_reader(self._get_group_url(curr_group_num),
                         shard_count=self.shard_count,
                         cur_shard=self.cur_shard,
                         predicate=self.predicate) \

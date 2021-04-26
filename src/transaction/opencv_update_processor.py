@@ -12,11 +12,22 @@ class OpenCVUpdateProcessor():
             'invert_color': self._invert_color,
             'test_filter': self._test_filter
         }
+
+        self.reversible_map = {
+            'grayscale': False,
+            'gaussian_blur': False,
+            'resize': False,
+            'invert_color': True,
+            'test_filter': False
+        }
         pass
 
     def apply(self, source_frame, object_update_arguments: ObjectUpdateArguments):
         function = self.function_map[object_update_arguments.function_name]
         return function(source_frame, object_update_arguments)
+    
+    def is_reversible(self, object_update_arguments: ObjectUpdateArguments):
+        return self.reversible_map[object_update_arguments.function_name]
 
     def _grayscale(self, source_frame, object_update_arguments: ObjectUpdateArguments):
         return cv2.cvtColor(cv2.cvtColor(source_frame, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
