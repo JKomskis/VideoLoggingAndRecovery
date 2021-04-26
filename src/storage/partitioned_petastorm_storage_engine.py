@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import shutil
 from typing import Iterator, List
 from petastorm.codecs import CompressedImageCodec, NdarrayCodec, ScalarCodec
 from petastorm.etl.dataset_metadata import materialize_dataset
@@ -11,14 +12,14 @@ from pyspark.sql.types import IntegerType
 
 from src.catalog.models.df_metadata import DataFrameMetadata
 from src.models.storage.batch import Batch
-from src.readers.petastorm_reader import PetastormReader
+from src.readers.partitioned_petastorm_reader import PartitionedPetastormReader
 from src.pressure_point.pressure_point_manager import PressurePointManager
 from src.pressure_point.pressure_point import PressurePoint, PressurePointLocation, PressurePointBehavior
 from src.config.constants import \
     PETASTORM_STORAGE_FOLDER, \
     INPUT_VIDEO_FOLDER
 
-class PetastormStorageEngine():
+class PartitionedPetastormStorageEngine():
     def __init__(self):
         spark_conf = SparkConf()
         spark_conf.setMaster('local')
@@ -31,29 +32,35 @@ class PetastormStorageEngine():
         self.spark_context = self.spark_session.sparkContext  
         self.spark_context.setLogLevel('ERROR')
 
-    def _spark_url(self, table: DataFrameMetadata):
+    def _spark_url(self, table: DataFrameMetadata, group_num: int = None):
         """
         Returns the file_url for a given file name
         file_name should be relative to the input video folder
         """
-        return f'file://{os.getcwd()}/{PETASTORM_STORAGE_FOLDER}/{table.file_url}'
+        suffix = ''
+        if group_num != None:
+            suffix = f'/group{group_num}'
+        return f'file://{os.getcwd()}/{PETASTORM_STORAGE_FOLDER}/{table.file_url}{suffix}'
     
     def create(self, table: DataFrameMetadata):
         """
         Create an empty dataframe in petastorm.
         """
-        empty_rdd = self.spark_context.emptyRDD()
+        shutil.rmtree(self._spark_url(table)[6:], ignore_errors=True)
+        os.makedirs(self._spark_url(table)[6:])
+        pass
+        # empty_rdd = self.spark_context.emptyRDD()
 
-        with materialize_dataset(self.spark_session,
-                                 self._spark_url(table),
-                                 table.schema.petastorm_schema):
+        # with materialize_dataset(self.spark_session,
+        #                          self._spark_url(table),
+        #                          table.schema.petastorm_schema):
 
-            self.spark_session.createDataFrame(empty_rdd,
-                                               table.schema.pyspark_schema) \
-                .coalesce(1) \
-                .write \
-                .mode('overwrite') \
-                .parquet(self._spark_url(table))
+        #     self.spark_session.createDataFrame(empty_rdd,
+        #                                        table.schema.pyspark_schema) \
+        #         .coalesce(1) \
+        #         .write \
+        #         .mode('overwrite') \
+        #         .parquet(self._spark_url(table))
 
     def write(self, table: DataFrameMetadata, rows: Batch):
         """
@@ -71,7 +78,7 @@ class PetastormStorageEngine():
         # print(f'Table schema: {table.schema.petastorm_schema}')
 
         with materialize_dataset(self.spark_session,
-                                 self._spark_url(table),
+                                 self._spark_url(table, rows.get_group_num()),
                                  table.schema.petastorm_schema):
 
             records = rows.frames
@@ -90,11 +97,11 @@ class PetastormStorageEngine():
                                                table.schema.pyspark_schema) \
                 .coalesce(1) \
                 .write \
-                .mode('append') \
-                .parquet(self._spark_url(table))
+                .mode('overwrite') \
+                .parquet(self._spark_url(table, rows.get_group_num()))
 
     def read(self, table: DataFrameMetadata, columns: List[
-            str] = None, predicate_func=None) -> Iterator[Batch]:
+            str] = None, predicate_func=None, group_num = None) -> Iterator[Batch]:
         """
         Reads the table and return a batch iterator for the
         tuples that passes the predicate func.
@@ -125,7 +132,7 @@ class PetastormStorageEngine():
 
         # ToDo: Handle the sharding logic. We might have to maintain a
         # context for deciding which shard to read
-        petastorm_reader = PetastormReader(
-            self._spark_url(table), predicate=predicate)
+        petastorm_reader = PartitionedPetastormReader(
+            self._spark_url(table), predicate=predicate, group_num = group_num)
         for batch in petastorm_reader.read():
             yield batch

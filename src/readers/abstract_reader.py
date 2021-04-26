@@ -4,6 +4,7 @@ from typing import Iterator, Dict
 import pandas as pd
 
 from src.models.storage.batch import Batch
+from src.config.constants import BATCH_SIZE
 
 
 class AbstractReader(metaclass=ABCMeta):
@@ -37,7 +38,7 @@ class AbstractReader(metaclass=ABCMeta):
         # Fetch batch_size from Config if not provided
         if self.batch_size is None or self.batch_size < 0:
             if self.batch_size is None:
-                self.batch_size = 50
+                self.batch_size = BATCH_SIZE
 
         for data in self._read():
             data_batch.append(data)

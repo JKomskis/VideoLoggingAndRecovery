@@ -9,6 +9,7 @@ class OpenCVUpdateProcessor():
             'grayscale': self._grayscale,
             'gaussian_blur': self._gaussian_blur,
             'resize': self._resize,
+            'invert_color': self._invert_color,
             'test_filter': self._test_filter
         }
         pass
@@ -25,6 +26,9 @@ class OpenCVUpdateProcessor():
     
     def _resize(self, source_frame, object_update_arguments: ObjectUpdateArguments):
         return cv2.resize(source_frame, **object_update_arguments.kwargs)
+    
+    def _invert_color(self, source_frame, object_update_arguments: ObjectUpdateArguments):
+        return cv2.bitwise_not(source_frame, **object_update_arguments.kwargs)
     
     def _test_filter(self, source_frame, object_update_arguments: ObjectUpdateArguments):
         return np.full(source_frame.shape, 255, dtype=np.uint8)

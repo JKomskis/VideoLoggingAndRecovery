@@ -5,6 +5,7 @@ import pandas as pd
 from typing import List
 from pandas import DataFrame
 from src.utils.logging_manager import LoggingManager, LoggingLevel
+from src.config.constants import BATCH_SIZE
 
 
 class BatchEncoder(json.JSONEncoder):
@@ -236,3 +237,8 @@ class Batch:
     def reset_index(self):
         """ Resets the index of the data frame in the batch"""
         self._frames.reset_index(drop=True, inplace=True)
+    
+    def get_group_num(self):
+        if self._frames.shape[1] == 0:
+            return -1
+        return int(self._frames.id.iloc[0] // BATCH_SIZE)

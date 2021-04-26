@@ -36,8 +36,8 @@ class DataFrameMetadata():
         return self._unique_identifier_column
 
     def __eq__(self, other):
-        return self.id == other.id and \
-            self.file_url == other.file_url and \
+        # return self.id == other.id and \
+        return self.file_url == other.file_url and \
             self.schema == other.schema and \
             self.identifier_column == other.identifier_column and \
             self.name == other.name

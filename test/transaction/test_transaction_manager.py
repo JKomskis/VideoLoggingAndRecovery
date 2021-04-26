@@ -12,7 +12,8 @@ from test.utils.util_functions import ignore_warnings, \
                                         apply_update_to_dataframe, \
                                         read_file_from_image, \
                                         read_file_from_petastorm, \
-                                        dataframes_equal
+                                        dataframes_equal, \
+                                        clear_petastorm_storage_folder
 from src.storage.petastorm_storage_engine import PetastormStorageEngine
 from src.utils.logging_manager import LoggingLevel, LoggingManager
 from src.config.constants import TRANSACTION_STORAGE_FOLDER
@@ -23,14 +24,8 @@ class TransactionManagerTest(unittest.TestCase):
         self.storage_engine = PetastormStorageEngine()
         LoggingManager().setEffectiveLevel(LoggingLevel.DEBUG)
     
-    # def tearDown(self):
-    #     shutil.rmtree(TRANSACTION_STORAGE_FOLDER, ignore_errors=True)
-    #     for filename in os.listdir(PETASTORM_STORAGE_FOLDER):
-    #         file_path = os.path.join(PETASTORM_STORAGE_FOLDER, filename)
-    #         if os.path.isfile(file_path) or os.path.islink(file_path):
-    #             os.unlink(file_path)
-    #         elif os.path.isdir(file_path):
-    #             shutil.rmtree(file_path)
+    def tearDown(self):
+        clear_petastorm_storage_folder()
 
     def test_should_create_transaction(self):
         txn_mgr = TransactionManager(storage_engine_passed=self.storage_engine)
