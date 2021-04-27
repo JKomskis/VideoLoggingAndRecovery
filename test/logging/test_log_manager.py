@@ -1,10 +1,13 @@
 import unittest
 import os
 import shutil
+import cProfile
 
 from src.Logging.log_manager import LogManager
 from src.utils.logging_manager import LoggingLevel, LoggingManager
 from src.config.constants import TRANSACTION_STORAGE_FOLDER
+
+from test.utils.metrics import Timing
 
 class TransactionManagerTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -189,8 +192,12 @@ class TransactionManagerTest(unittest.TestCase):
         self.log_mgr.log_abort_txn_record(4)
 
     def test_recover_log(self):
-        self.test_commit_record()
-        self.log_mgr.recover_log()
+        with cProfile.Profile() as pr:
+            self.test_commit_record()
+        pr.print_stats()
+
+        with Timing("Basic log recovery"):
+            self.log_mgr.recover_log()
 
 if __name__ == '__main__':
     unittest.main()
