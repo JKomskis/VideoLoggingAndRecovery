@@ -8,6 +8,7 @@ from petastorm.predicates import in_lambda
 from pyspark.sql import SparkSession
 from pyspark.conf import SparkConf
 from pyspark.sql.types import IntegerType
+import concurrent.futures
 
 from src.catalog.models.df_metadata import DataFrameMetadata
 from src.models.storage.batch import Batch
@@ -104,11 +105,10 @@ class BufferManager():
         self._update_lru(slot_num)
 
     def read_slot(self, table: DataFrameMetadata, group_num) -> Batch:
-        LoggingManager().log(f'Reading table {table.file_url} group {group_num}', LoggingLevel.INFO)
         slot, slot_num = self._get_slot(table, group_num)
         batch = None
         if slot == None:
-            LoggingManager().log(f'Getting table from storage engine', LoggingLevel.INFO)
+            LoggingManager().log(f'Reading table {table.file_url} group {group_num} from storage engine', LoggingLevel.INFO)
             batch = list(self._storage_engine.read(table, group_num=group_num))[0]
             slot_num = self._get_free_slot()
             self._slots[slot_num] = BufferManagerSlot(table, batch)
@@ -127,10 +127,9 @@ class BufferManager():
 
     def flush_all_slots(self) -> None:
         LoggingManager().log(f'Flushing buffer manager', LoggingLevel.INFO)
-        i = 0
-        while i < len(self._slots):
-            self.flush_slot(i)
-            i = i + 1
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = {executor.submit(self.flush_slot, i): i for i in range(len(self._slots))}
+            concurrent.futures.as_completed(futures)
 
     def discard_slot(self, slot_num: int) -> None:
         self._slots[slot_num] = None
@@ -141,3 +140,7 @@ class BufferManager():
         while i < len(self._slots):
             self.discard_slot(i)
             i = i + 1
+    
+    def get_group_lsn(self, table: DataFrameMetadata, group_num: int):
+        batch = self.read_slot(table, group_num)
+        batch.frames['lsn'].max()

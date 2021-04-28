@@ -3,6 +3,10 @@ import numpy as np
 
 from src.transaction.object_update_arguments import ObjectUpdateArguments
 
+class UpdateNotReversibleException(Exception):
+    def __init__(self, object_update_arguments):
+        super(UpdateNotReversibleException, self).__init__(object_update_arguments)
+
 class OpenCVUpdateProcessor():
     def __init__(self):
         self.function_map = {
@@ -14,11 +18,7 @@ class OpenCVUpdateProcessor():
         }
 
         self.reversible_map = {
-            'grayscale': False,
-            'gaussian_blur': False,
-            'resize': False,
-            'invert_color': True,
-            'test_filter': False
+            'invert_color': self._reverse_invert_color,
         }
         pass
 
@@ -27,7 +27,12 @@ class OpenCVUpdateProcessor():
         return function(source_frame, object_update_arguments)
     
     def is_reversible(self, object_update_arguments: ObjectUpdateArguments):
-        return self.reversible_map[object_update_arguments.function_name]
+        return object_update_arguments.function_name in self.reversible_map
+    
+    def reverse(self, object_update_arguments: ObjectUpdateArguments):
+        if not self.is_reversible(object_update_arguments):
+            raise UpdateNotReversibleException(object_update_arguments)
+        return self.reversible_map[object_update_arguments.function_name](object_update_arguments)
 
     def _grayscale(self, source_frame, object_update_arguments: ObjectUpdateArguments):
         return cv2.cvtColor(cv2.cvtColor(source_frame, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
@@ -43,3 +48,9 @@ class OpenCVUpdateProcessor():
     
     def _test_filter(self, source_frame, object_update_arguments: ObjectUpdateArguments):
         return np.full(source_frame.shape, 255, dtype=np.uint8)
+    
+    def _reverse_invert_color(self, object_update_arguments: ObjectUpdateArguments):
+        # Applying the same update again will reverse the color inversion, no changes needed
+        return ObjectUpdateArguments(object_update_arguments.function_name,
+                                    object_update_arguments.start_frame,
+                                    object_update_arguments.end_frame)

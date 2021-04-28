@@ -8,7 +8,7 @@ from src.utils.logging_manager import LoggingManager
 
 class OpenCVReader(AbstractReader):
 
-    def __init__(self, *args, start_frame_id=0, **kwargs):
+    def __init__(self, *args, start_frame_id=0, include_lsn=False, **kwargs):
         """
             Reads video using OpenCV and yields frame data.
             It will use the `start_frame_id` while annotating the
@@ -22,6 +22,7 @@ class OpenCVReader(AbstractReader):
                     we assign to first read frame.
          """
         self._start_frame_id = start_frame_id
+        self.include_lsn = include_lsn
         super().__init__(*args, **kwargs)
 
     def _read(self) -> Iterator[Dict]:
@@ -36,7 +37,10 @@ class OpenCVReader(AbstractReader):
         # print(f'FRAME: {frame_id} {frame}')
 
         while frame is not None:
-            yield {'id': frame_id, 'data': frame}
+            if not self.include_lsn:
+                yield {'id': frame_id, 'data': frame}
+            else:
+                yield {'id': frame_id, 'data': frame, 'lsn': -1}
             _, frame = video.read()
             frame_id += 1
     

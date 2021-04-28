@@ -62,8 +62,8 @@ class DataFrameColumn():
         return column_str
 
     def __eq__(self, other):
-        return self.id == other.id and \
-            self.metadata_id == other.metadata_id and \
+        # return self.id == other.id and \
+        return self.metadata_id == other.metadata_id and \
             self.is_nullable == other.is_nullable and \
             self.array_dimensions == other.array_dimensions and \
             self.name == other.name and \

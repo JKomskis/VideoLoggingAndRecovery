@@ -28,16 +28,18 @@ def ignore_warnings(test_func):
             test_func(self, *args, **kwargs)
     return do_test
 
-def write_file(storage_engine, file_name) -> DataFrameMetadata:
+def write_file(storage_engine, file_name, include_lsn=False) -> DataFrameMetadata:
     LoggingManager().log(f'Writing file {file_name}', LoggingLevel.INFO)
     dataframe_metadata = DataFrameMetadata(file_name, f'{INPUT_VIDEO_FOLDER}/{file_name}.mp4')
 
-    reader = OpenCVReader(file_url = dataframe_metadata.file_url, batch_size = BATCH_SIZE)
+    reader = OpenCVReader(file_url = dataframe_metadata.file_url, include_lsn=include_lsn, batch_size = BATCH_SIZE)
 
     dataframe_columns = [
         DataFrameColumn('id', ColumnType.INTEGER),
         DataFrameColumn('data', ColumnType.NDARRAY, array_dimensions= [reader.video_height(), reader.video_width(), 3])
     ]
+    if include_lsn:
+        dataframe_columns.append(DataFrameColumn('lsn', ColumnType.INTEGER))
     dataframe_metadata.schema = dataframe_columns
 
     storage_engine.create(dataframe_metadata)
@@ -47,10 +49,10 @@ def write_file(storage_engine, file_name) -> DataFrameMetadata:
     LoggingManager().log(f'Done writing file {file_name}', LoggingLevel.INFO)
     return dataframe_metadata
 
-def read_file_from_fs(file_name: str) -> pd.DataFrame:
+def read_file_from_fs(file_name: str, include_lsn=False) -> pd.DataFrame:
     df = None
     first_batch = True
-    reader = OpenCVReader(file_url = f'{INPUT_VIDEO_FOLDER}/{file_name}.mp4', batch_size = BATCH_SIZE)
+    reader = OpenCVReader(file_url = f'{INPUT_VIDEO_FOLDER}/{file_name}.mp4', include_lsn=include_lsn, batch_size = BATCH_SIZE)
     for batch in reader.read():
         if first_batch:
             first_batch = False
@@ -122,13 +124,19 @@ def dataframes_equal(df1: pd.DataFrame, df2: pd.DataFrame) -> bool:
     LoggingManager().log(f'Dataframes are identical', LoggingLevel.DEBUG)
     return True
 
-def clear_petastorm_storage_folder():
-    for filename in os.listdir(PETASTORM_STORAGE_FOLDER):
-        file_path = os.path.join(PETASTORM_STORAGE_FOLDER, filename)
+def clear_folder(dir_name: str):
+    for filename in os.listdir(dir_name):
+        file_path = os.path.join(dir_name, filename)
         if os.path.isfile(file_path) or os.path.islink(file_path):
             os.unlink(file_path)
         elif os.path.isdir(file_path):
             shutil.rmtree(file_path)
+
+def clear_petastorm_storage_folder():
+    clear_folder(PETASTORM_STORAGE_FOLDER)
+
+def clear_transaction_storage_folder():
+    clear_folder(TRANSACTION_STORAGE_FOLDER)
 
 def write_dataframe_to_video(df: pd.DataFrame, output_file_path: str) -> None:
     output_df = df.sort_values(by='id')

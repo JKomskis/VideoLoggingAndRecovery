@@ -10,8 +10,8 @@ from src.catalog.models.df_column import DataFrameColumn
 from src.catalog.column_type import ColumnType
 from src.transaction.object_update_arguments import ObjectUpdateArguments
 from src.transaction.transaction_metadata import TransactionMetadata
+from src.transaction.util import apply_object_update_arguments_to_buffer_manager
 from src.storage.partitioned_petastorm_storage_engine import PartitionedPetastormStorageEngine
-from src.readers.partitioned_petastorm_reader import GroupDoesNotExistException
 from src.models.storage.batch import Batch
 from src.transaction.opencv_update_processor import OpenCVUpdateProcessor
 from src.Logging.logical_log_manager import LogicalLogManager
@@ -72,7 +72,8 @@ class OptimizedTransactionManager():
                 dataframe_metadata = DataFrameMetadata(Path(file_url).stem, file_url)
                 dataframe_columns = [
                     DataFrameColumn('id', ColumnType.INTEGER),
-                    DataFrameColumn('data', ColumnType.NDARRAY, array_dimensions= [height, width, 3])
+                    DataFrameColumn('data', ColumnType.NDARRAY, array_dimensions= [height, width, 3]),
+                    DataFrameColumn('lsn', ColumnType.INTEGER)
                 ]
                 dataframe_metadata.schema = dataframe_columns
 
@@ -100,34 +101,21 @@ class OptimizedTransactionManager():
     def abort_transaction(self, txn_id: int):
         self.log_manager.log_abort_txn_record(txn_id)
 
-        # TODO: rollback transaction
+        self.log_manager.rollback_txn(txn_id)
 
 
     def update_object(self, txn_id: int, dataframe_metadata: DataFrameMetadata, update_arguments: ObjectUpdateArguments):
         if self.opencv_update_processor.is_reversible(update_arguments):
             # Do logical logging
             # Write log record to file
-            self.log_manager.log_logical_update_record(txn_id, dataframe_metadata.file_url, update_arguments)
+            update_lsn = self.log_manager.log_logical_update_record(txn_id, dataframe_metadata, update_arguments)
 
             # Apply update through the buffer manager
-            start_group = int(update_arguments.start_frame // BATCH_SIZE)
-            end_group = int(update_arguments.end_frame // BATCH_SIZE)
-            curr_group = start_group
-            while curr_group <= end_group:
-                try:
-                    batch = self.buffer_manager.read_slot(dataframe_metadata, curr_group)
-
-                    new_df = pd.DataFrame()
-                    for index, row in batch.frames.iterrows():
-                        if update_arguments.start_frame <= row.id and update_arguments.end_frame >= row.id:
-                            row.data = self.opencv_update_processor.apply(row.data, update_arguments)
-                            new_df = new_df.append(row, ignore_index=True)
-                    new_batch = Batch(new_df)
-
-                    self.buffer_manager.write_slot(dataframe_metadata, new_batch)
-                    curr_group = curr_group + 1
-                except GroupDoesNotExistException as e:
-                    break
+            apply_object_update_arguments_to_buffer_manager(self.buffer_manager,
+                                                            self.opencv_update_processor,
+                                                            dataframe_metadata,
+                                                            update_arguments,
+                                                            update_lsn)
                 
         else:
             # Fallback to physical logging

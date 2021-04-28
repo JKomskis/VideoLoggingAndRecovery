@@ -1,12 +1,17 @@
 from enum import Enum
 
 class PressurePointLocation(Enum):
-    PETASTORE_STORAGE_ENGINE_DURING_WRITE = 1
-    UNKNOWN = 2
+    UNKNOWN = 1
+    PETASTORE_STORAGE_ENGINE_DURING_WRITE = 2
+    LOGICAL_LOG_MANAGER_ROLLBACK_AFTER_CLR = 3
+
+    
 
 class PressurePointBehavior(Enum):
-    EXCEPTION_AT_BEGINNING_OF_WRITE = 1
-    EXCPETION_DURING_WRITE = 2
+    UNKNOWN = 1
+    EXCEPTION_AT_BEGINNING_OF_WRITE = 2
+    EXCPETION_DURING_WRITE = 3
+    EARLY_RETURN = 4
 
 class PressurePoint():
     def __init__(self, location: PressurePointLocation, behavior: PressurePointBehavior):

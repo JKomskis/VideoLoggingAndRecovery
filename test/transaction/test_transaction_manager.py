@@ -13,10 +13,12 @@ from test.utils.util_functions import ignore_warnings, \
                                         read_file_from_image, \
                                         read_file_from_petastorm, \
                                         dataframes_equal, \
-                                        clear_petastorm_storage_folder
+                                        clear_petastorm_storage_folder, \
+                                        clear_transaction_storage_folder
 from src.storage.petastorm_storage_engine import PetastormStorageEngine
 from src.utils.logging_manager import LoggingLevel, LoggingManager
 from src.config.constants import TRANSACTION_STORAGE_FOLDER
+from src.pressure_point.pressure_point_manager import PressurePointManager
 
 class TransactionManagerTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -25,7 +27,9 @@ class TransactionManagerTest(unittest.TestCase):
         LoggingManager().setEffectiveLevel(LoggingLevel.DEBUG)
     
     def tearDown(self):
+        PressurePointManager().reset()
         clear_petastorm_storage_folder()
+        clear_transaction_storage_folder()
 
     def test_should_create_transaction(self):
         txn_mgr = TransactionManager(storage_engine_passed=self.storage_engine)
