@@ -18,6 +18,7 @@ from src.Logging.logical_log_manager import LogicalLogManager
 from src.buffer.buffer_manager import BufferManager
 from src.config.constants import TRANSACTION_STORAGE_FOLDER, INPUT_VIDEO_FOLDER, BATCH_SIZE
 from src.utils.logging_manager import LoggingLevel, LoggingManager
+from src.readers.partitioned_petastorm_reader import GroupDoesNotExistException
 
 class OptimizedTransactionManager():
     def __init__(self, storage_engine_passed=None, log_manager_passed=None, buffer_manager_passed=None):
@@ -57,29 +58,29 @@ class OptimizedTransactionManager():
     def get_transaction_directory(self, txn_id):
         return f'{TRANSACTION_STORAGE_FOLDER}/{txn_id}'
     
-    def write_serialized_image(self, file_url, image_path):
-        LoggingManager().log(f'Writing image {image_path}', LoggingLevel.INFO)
-        dataframe_metadata = None
-        first_batch = True
-        for batch_path in sorted(glob.glob(f'{image_path}_*')):
-            frames_df = pd.read_pickle(batch_path)
-            LoggingManager().log(f'Writing batch: {batch_path}', LoggingLevel.INFO)
+    # def write_serialized_image(self, file_url, image_path):
+    #     LoggingManager().log(f'Writing image {image_path}', LoggingLevel.INFO)
+    #     dataframe_metadata = None
+    #     first_batch = True
+    #     for batch_path in sorted(glob.glob(f'{image_path}_*')):
+    #         frames_df = pd.read_pickle(batch_path)
+    #         LoggingManager().log(f'Writing batch: {batch_path}', LoggingLevel.INFO)
 
-            if first_batch:
-                first_batch = False
-                width = frames_df.data.iloc[0].shape[1]
-                height = frames_df.data.iloc[0].shape[0]
-                dataframe_metadata = DataFrameMetadata(Path(file_url).stem, file_url)
-                dataframe_columns = [
-                    DataFrameColumn('id', ColumnType.INTEGER),
-                    DataFrameColumn('data', ColumnType.NDARRAY, array_dimensions= [height, width, 3]),
-                    DataFrameColumn('lsn', ColumnType.INTEGER)
-                ]
-                dataframe_metadata.schema = dataframe_columns
+    #         if first_batch:
+    #             first_batch = False
+    #             width = frames_df.data.iloc[0].shape[1]
+    #             height = frames_df.data.iloc[0].shape[0]
+    #             dataframe_metadata = DataFrameMetadata(Path(file_url).stem, file_url)
+    #             dataframe_columns = [
+    #                 DataFrameColumn('id', ColumnType.INTEGER),
+    #                 DataFrameColumn('data', ColumnType.NDARRAY, array_dimensions= [height, width, 3]),
+    #                 DataFrameColumn('lsn', ColumnType.INTEGER)
+    #             ]
+    #             dataframe_metadata.schema = dataframe_columns
 
-                self.storage_engine.create(dataframe_metadata)
+    #             self.storage_engine.create(dataframe_metadata)
 
-            self.storage_engine.write(dataframe_metadata, Batch(frames_df))
+    #         self.storage_engine.write(dataframe_metadata, Batch(frames_df))
     
     def begin_transaction(self) -> int:
         this_txn = self._txn_counter
@@ -105,18 +106,46 @@ class OptimizedTransactionManager():
 
 
     def update_object(self, txn_id: int, dataframe_metadata: DataFrameMetadata, update_arguments: ObjectUpdateArguments):
+        update_lsn = -1
         if self.opencv_update_processor.is_reversible(update_arguments):
             # Do logical logging
             # Write log record to file
             update_lsn = self.log_manager.log_logical_update_record(txn_id, dataframe_metadata, update_arguments)
-
-            # Apply update through the buffer manager
-            apply_object_update_arguments_to_buffer_manager(self.buffer_manager,
-                                                            self.opencv_update_processor,
-                                                            dataframe_metadata,
-                                                            update_arguments,
-                                                            update_lsn)
                 
         else:
             # Fallback to physical logging
-            pass
+            # Save before image deltas of group dataframes
+            file_version = self._txn_table[txn_id].get_file_version(dataframe_metadata.file_url)
+            self._txn_table[txn_id].increment_file_version(dataframe_metadata.file_url)
+            before_image_base_path = f'{self.get_transaction_directory(txn_id)}/{dataframe_metadata.file_url}.v{file_version}'
+            os.makedirs(os.path.dirname(before_image_base_path), exist_ok=True)
+            
+            start_group = int(update_arguments.start_frame // BATCH_SIZE)
+            end_group = int(update_arguments.end_frame // BATCH_SIZE)
+            curr_group = start_group
+            while curr_group <= end_group:
+                try:
+                    batch = self.buffer_manager.read_slot(dataframe_metadata, curr_group)
+
+                    old_df = pd.DataFrame()
+                    for index, row in batch.frames.iterrows():
+                        if update_arguments.start_frame <= row.id and update_arguments.end_frame >= row.id:
+                            old_df = old_df.append(row, ignore_index=True)
+
+                    # Save logically to transaction's folder
+                    before_image_file_path = f'{before_image_base_path}_{curr_group}'
+                    old_df.to_pickle(before_image_file_path)
+
+                    curr_group = curr_group + 1
+                except GroupDoesNotExistException as e:
+                    break
+            
+            # Write log record to file
+            update_lsn = self.log_manager.log_physical_update_record(txn_id, dataframe_metadata, update_arguments, before_image_base_path)
+        
+        # Apply update through the buffer manager
+        apply_object_update_arguments_to_buffer_manager(self.buffer_manager,
+                                                        self.opencv_update_processor,
+                                                        dataframe_metadata,
+                                                        update_arguments,
+                                                        update_lsn)

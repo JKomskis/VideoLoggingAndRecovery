@@ -14,6 +14,7 @@ class OpenCVUpdateProcessor():
             'gaussian_blur': self._gaussian_blur,
             'resize': self._resize,
             'invert_color': self._invert_color,
+            'contrast_brightness': self._contrast_brightness,
             'test_filter': self._test_filter
         }
 
@@ -45,6 +46,13 @@ class OpenCVUpdateProcessor():
     
     def _invert_color(self, source_frame, object_update_arguments: ObjectUpdateArguments):
         return cv2.bitwise_not(source_frame, **object_update_arguments.kwargs)
+    
+    def _contrast_brightness(self, source_frame, object_update_arguments: ObjectUpdateArguments):
+        return cv2.addWeighted(source_frame,
+                                object_update_arguments.kwargs['contrast'],
+                                source_frame,
+                                0,
+                                object_update_arguments.kwargs['brightness'])
     
     def _test_filter(self, source_frame, object_update_arguments: ObjectUpdateArguments):
         return np.full(source_frame.shape, 255, dtype=np.uint8)

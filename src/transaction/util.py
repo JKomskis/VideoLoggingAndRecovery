@@ -1,4 +1,6 @@
+from typing import List
 import pandas as pd
+import glob
 
 from src.buffer.buffer_manager import BufferManager
 from src.catalog.models.df_metadata import DataFrameMetadata
@@ -13,7 +15,7 @@ def apply_object_update_arguments_to_buffer_manager(buffer_manager: BufferManage
                                                     opencv_update_processor: OpenCVUpdateProcessor,
                                                     dataframe_metadata: DataFrameMetadata,
                                                     update_arguments: ObjectUpdateArguments,
-                                                    lsn):
+                                                    lsn: int):
     start_group = int(update_arguments.start_frame // BATCH_SIZE)
     end_group = int(update_arguments.end_frame // BATCH_SIZE)
     curr_group = start_group
@@ -33,6 +35,27 @@ def apply_object_update_arguments_to_buffer_manager(buffer_manager: BufferManage
                 new_batch = Batch(new_df)
 
                 buffer_manager.write_slot(dataframe_metadata, new_batch)
+            curr_group = curr_group + 1
+        except GroupDoesNotExistException as e:
+            break
+
+def apply_before_deltas_to_buffer_manager(buffer_manager: BufferManager,
+                                            dataframe_metadata: DataFrameMetadata,
+                                            before_delta_path: str,
+                                            lsn: int):
+    for path in glob.glob(f'{before_delta_path}_*'):
+        try:
+            curr_group = int(path[path.rfind('_')+1:])
+            batch = buffer_manager.read_slot(dataframe_metadata, curr_group)
+
+            LoggingManager().log(f'lsn: {lsn} max_lsn: {batch.frames["lsn"].max()}', LoggingLevel.INFO)
+
+            if lsn > batch.frames['lsn'].max():
+                orig_df = pd.read_pickle(path)
+                orig_df['lsn'] = lsn
+                orig_batch = Batch(orig_df)
+
+                buffer_manager.write_slot(dataframe_metadata, orig_batch)
             curr_group = curr_group + 1
         except GroupDoesNotExistException as e:
             break

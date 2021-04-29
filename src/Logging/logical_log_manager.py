@@ -1,9 +1,11 @@
 import os
 from enum import Enum
+from typing import List
 import pickle
 
 from src.transaction.object_update_arguments import ObjectUpdateArguments
-from src.transaction.util import apply_object_update_arguments_to_buffer_manager
+from src.transaction.util import apply_object_update_arguments_to_buffer_manager, \
+                                 apply_before_deltas_to_buffer_manager
 from src.config.constants import TRANSACTION_STORAGE_FOLDER
 from src.utils.logging_manager import LoggingLevel, LoggingManager
 from src.transaction.opencv_update_processor import OpenCVUpdateProcessor
@@ -83,6 +85,13 @@ class LogicalLogManager():
         return self._write_log_record(LogRecordType.LOGICAL_UPDATE, txn_id, [
             dataframe_metadata.serialize(), update_arguments.serialize()
         ])
+    
+    def log_physical_update_record(self, txn_id: int, dataframe_metadata: DataFrameMetadata, update_arguments: ObjectUpdateArguments, before_delta_path: str) -> int:
+        # write log record that includes txn id, dataframe_metadata, and update operation
+        LoggingManager().log(f'Update, txn {txn_id} name {dataframe_metadata.file_url} using {update_arguments}', LoggingLevel.DEBUG)
+        return self._write_log_record(LogRecordType.PHYSICAL_UPDATE, txn_id, [
+            dataframe_metadata.serialize(), update_arguments.serialize(), before_delta_path.encode("utf8")
+        ])
 
     def log_commit_txn_record(self, txn_id: int) -> None:
         LoggingManager().log(f'Commit txn {txn_id}', LoggingLevel.DEBUG)
@@ -94,12 +103,25 @@ class LogicalLogManager():
         LoggingManager().log(f'Abort txn {txn_id}', LoggingLevel.DEBUG)
         self._write_log_record(LogRecordType.ABORT, txn_id)
     
+    def log_txnend_record(self, txn_id: int) -> None:
+        LoggingManager().log(f'End txn {txn_id}', LoggingLevel.DEBUG)
+        self._write_log_record(LogRecordType.TXNEND, txn_id)
+    
     def log_logical_clr_record(self, txn_id: int, dataframe_metadata: DataFrameMetadata, update_arguments: ObjectUpdateArguments, undo_next_lsn: int) -> int:
         # write log record that includes txn_id, dataframe_metadata, reversed update operation, and undo next lsn
-        LoggingManager().log(f'CLR, txn {txn_id} name {dataframe_metadata.file_url} using {update_arguments}, undo_next_lsn {undo_next_lsn}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Logical CLR, txn {txn_id} name {dataframe_metadata.file_url} using {update_arguments}, undo_next_lsn {undo_next_lsn}', LoggingLevel.DEBUG)
         return self._write_log_record(LogRecordType.LOGICAL_CLR, txn_id, [
             dataframe_metadata.serialize(),
             update_arguments.serialize(),
+            undo_next_lsn.to_bytes(4, byteorder='little', signed=True)
+        ])
+    
+    def log_physical_clr_record(self, txn_id: int, dataframe_metadata: DataFrameMetadata, before_delta_path: str, undo_next_lsn: int) -> int:
+        # write log record that includes txn_id, dataframe_metadata, before_delta_path, and undo next lsn
+        LoggingManager().log(f'Physical CLR, txn {txn_id} name {dataframe_metadata.file_url} with path {before_delta_path}, undo_next_lsn {undo_next_lsn}', LoggingLevel.DEBUG)
+        return self._write_log_record(LogRecordType.PHYSICAL_CLR, txn_id, [
+            dataframe_metadata.serialize(),
+            before_delta_path.encode('utf8'),
             undo_next_lsn.to_bytes(4, byteorder='little', signed=True)
         ])
 
@@ -143,7 +165,26 @@ class LogicalLogManager():
                                                                 clr_lsn)
             # Undo physical update
             elif record_type == LogRecordType.PHYSICAL_UPDATE:
-                pass
+                dataframe_metadata, update_arguments, before_delta_path = self.parse_physical_update_record(rest_of_entry)
+                # Log CLR to log file
+                clr_lsn = self.log_physical_clr_record(txn_id,
+                                                        dataframe_metadata,
+                                                        before_delta_path,
+                                                        lsn)
+                
+                if PressurePointManager().has_pressure_point(PressurePoint(
+                    PressurePointLocation.LOGICAL_LOG_MANAGER_ROLLBACK_AFTER_CLR,
+                    PressurePointBehavior.EARLY_RETURN)):
+                        # Results in a log with a CLR record for testing purposes
+                        return
+
+                # Revert the update
+                LoggingManager().log(f'Reverting txn_id {read_txn_id} file_url {dataframe_metadata.file_url} with path {before_delta_path}', LoggingLevel.DEBUG)
+                apply_before_deltas_to_buffer_manager(self.buffer_manager,
+                                                        dataframe_metadata,
+                                                        before_delta_path,
+                                                        clr_lsn)
+
             # Don't undo logical clr, but set lsn to its undo_next_lsn value
             elif record_type == LogRecordType.LOGICAL_CLR:
                 dataframe_metadata, update_arguments, undo_next_lsn = self.parse_logical_clr_record(rest_of_entry)
@@ -151,7 +192,12 @@ class LogicalLogManager():
                 lsn = undo_next_lsn
             # Don't undo physical clr, but set lsn to its undo_next_lsn value
             elif record_type == LogRecordType.PHYSICAL_CLR:
-                pass
+                dataframe_metadata, before_delta_path, undo_next_lsn = self.parse_physical_clr_record(rest_of_entry)
+                LoggingManager().log(f'Found physical CLR, setting lsn to {undo_next_lsn}', LoggingLevel.DEBUG)
+                lsn = undo_next_lsn
+        
+        self.log_file.seek(0, 2)
+        self.log_txnend_record(txn_id)
 
         self.log_file.seek(original_seek_offset)
         del self.last_lsn[txn_id]
@@ -220,7 +266,13 @@ class LogicalLogManager():
                                                                 curr_lsn)
             # Redo physical update
             elif record_type == LogRecordType.PHYSICAL_UPDATE:
-                pass
+                dataframe_metadata, update_arguments, _ = self.parse_physical_update_record(rest_of_entry)
+                LoggingManager().log(f'Redoing physical update file_url {dataframe_metadata.file_url} using {update_arguments}', LoggingLevel.DEBUG)
+                apply_object_update_arguments_to_buffer_manager(self.buffer_manager,
+                                                                self.update_processor,
+                                                                dataframe_metadata,
+                                                                update_arguments,
+                                                                curr_lsn)
             # Redo logical CLR
             elif record_type == LogRecordType.LOGICAL_CLR:
                 dataframe_metadata, update_arguments, _ = self.parse_logical_clr_record(rest_of_entry)
@@ -232,7 +284,12 @@ class LogicalLogManager():
                                                                 curr_lsn)
             # Redo physical CLR
             elif record_type == LogRecordType.PHYSICAL_CLR:
-                pass
+                dataframe_metadata, before_delta_path, undo_next_lsn = self.parse_physical_clr_record(rest_of_entry)
+                LoggingManager().log(f'Redoing physical CLR file_url {dataframe_metadata.file_url} with path {before_delta_path}', LoggingLevel.DEBUG)
+                apply_before_deltas_to_buffer_manager(self.buffer_manager,
+                                                      dataframe_metadata,
+                                                      before_delta_path,
+                                                      curr_lsn)
             offset += entry_len
             assert offset == self.log_file.tell()
 
@@ -262,10 +319,22 @@ class LogicalLogManager():
         dataframe_metadata = DataFrameMetadata.deserialize(rest_of_entry[13:update_arguments_pos])
         
         update_arguments_len = int.from_bytes(rest_of_entry[update_arguments_pos:update_arguments_pos+4], byteorder='little')
-        update_arguments_bytes = rest_of_entry[update_arguments_pos+4:]
-        update_arguments = ObjectUpdateArguments.deserialize(update_arguments_bytes)
+        update_arguments = ObjectUpdateArguments.deserialize(rest_of_entry[update_arguments_pos+4:])
 
         return dataframe_metadata, update_arguments
+    
+    def parse_physical_update_record(self, rest_of_entry: bytes) -> (DataFrameMetadata, ObjectUpdateArguments, str):
+        df_metadata_len = int.from_bytes(rest_of_entry[9:13], byteorder='little')
+        update_arguments_pos = 13 + df_metadata_len
+        dataframe_metadata = DataFrameMetadata.deserialize(rest_of_entry[13:update_arguments_pos])
+        
+        update_arguments_len = int.from_bytes(rest_of_entry[update_arguments_pos:update_arguments_pos+4], byteorder='little')
+        before_delta_path_pos = update_arguments_pos + 4 + update_arguments_len
+        update_arguments = ObjectUpdateArguments.deserialize(rest_of_entry[update_arguments_pos+4:before_delta_path_pos])
+
+        before_delta_path = rest_of_entry[before_delta_path_pos+4:].decode('utf8')
+
+        return dataframe_metadata, update_arguments, before_delta_path
 
     def parse_logical_clr_record(self, rest_of_entry: bytes) -> (DataFrameMetadata, ObjectUpdateArguments, int):
         df_metadata_len = int.from_bytes(rest_of_entry[9:13], byteorder='little')
@@ -279,3 +348,16 @@ class LogicalLogManager():
         undo_next_lsn = int.from_bytes(rest_of_entry[undo_next_lsn_pos+4:], byteorder='little')
 
         return dataframe_metadata, update_arguments, undo_next_lsn
+
+    def parse_physical_clr_record(self, rest_of_entry: bytes) -> (DataFrameMetadata, str, int):
+        df_metadata_len = int.from_bytes(rest_of_entry[9:13], byteorder='little')
+        before_delta_path_pos = 13 + df_metadata_len
+        dataframe_metadata = DataFrameMetadata.deserialize(rest_of_entry[13:before_delta_path_pos])
+        
+        before_delta_path_len = int.from_bytes(rest_of_entry[before_delta_path_pos:before_delta_path_pos+4], byteorder='little')
+        undo_next_lsn_pos = before_delta_path_pos + 4 + before_delta_path_len
+        before_delta_path = rest_of_entry[before_delta_path_pos+4:undo_next_lsn_pos].decode('utf8')
+
+        undo_next_lsn = int.from_bytes(rest_of_entry[undo_next_lsn_pos+4:], byteorder='little')
+
+        return dataframe_metadata, before_delta_path, undo_next_lsn
