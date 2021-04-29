@@ -4,7 +4,7 @@ from src.utils.logging_manager import LoggingManager, LoggingLevel
 from test.utils.metrics import Timing
 
 class AbstractBenchmark(ABC):
-    def __init__(self, repetitions = 7):
+    def __init__(self, repetitions = 1):
         self.repetitions = repetitions
         self._time_measurements = []
     

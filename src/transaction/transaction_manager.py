@@ -109,7 +109,7 @@ class TransactionManager():
 
         before_image_file_path = f'{self.get_transaction_directory(txn_id)}/{dataframe_metadata.file_url}.v{file_version}_old'
         after_image_file_path = f'{self.get_transaction_directory(txn_id)}/{dataframe_metadata.file_url}.v{file_version}_new'
-        os.makedirs(os.path.dirname(before_image_file_path))
+        os.makedirs(os.path.dirname(before_image_file_path), exist_ok=True)
 
         batch_num = 0
         for batch in self.storage_engine.read(dataframe_metadata):

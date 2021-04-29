@@ -21,7 +21,7 @@ from src.utils.logging_manager import LoggingLevel, LoggingManager
 from src.readers.partitioned_petastorm_reader import GroupDoesNotExistException
 
 class OptimizedTransactionManager():
-    def __init__(self, storage_engine_passed=None, log_manager_passed=None, buffer_manager_passed=None):
+    def __init__(self, storage_engine_passed=None, log_manager_passed=None, buffer_manager_passed=None, force_physical_logging=False):
         if storage_engine_passed != None:
             self.storage_engine = storage_engine_passed
         else:
@@ -37,6 +37,7 @@ class OptimizedTransactionManager():
         else:
             self.buffer_manager = BufferManager(200, self.storage_engine)
 
+        self.force_physical_logging = force_physical_logging
         self.opencv_update_processor = OpenCVUpdateProcessor()
         self._txn_table = {}
         self._txn_counter_file_path = f'{TRANSACTION_STORAGE_FOLDER}/txn_counter'
@@ -107,7 +108,7 @@ class OptimizedTransactionManager():
 
     def update_object(self, txn_id: int, dataframe_metadata: DataFrameMetadata, update_arguments: ObjectUpdateArguments):
         update_lsn = -1
-        if self.opencv_update_processor.is_reversible(update_arguments):
+        if (not self.force_physical_logging) and self.opencv_update_processor.is_reversible(update_arguments):
             # Do logical logging
             # Write log record to file
             update_lsn = self.log_manager.log_logical_update_record(txn_id, dataframe_metadata, update_arguments)
