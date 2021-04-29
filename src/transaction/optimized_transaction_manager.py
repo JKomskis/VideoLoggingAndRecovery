@@ -26,12 +26,12 @@ class OptimizedTransactionManager():
             self.storage_engine = storage_engine_passed
         else:
             self.storage_engine = PartitionedPetastormStorageEngine()
-        
+
         if log_manager_passed != None:
             self.log_manager = log_manager_passed
         else:
             self.log_manager = LogicalLogManager()
-        
+
         if buffer_manager_passed != None:
             self.buffer_manager = buffer_manager_passed
         else:
@@ -51,14 +51,14 @@ class OptimizedTransactionManager():
         else:
             with open(self._txn_counter_file_path, 'rb') as txn_counter_file:
                 self._txn_counter = struct.unpack('i', txn_counter_file.read())[0]
-    
+
     def _write_txn_counter(self):
         with open(self._txn_counter_file_path, 'wb') as txn_counter_file:
             txn_counter_file.write(struct.pack('i', self._txn_counter))
-    
+
     def get_transaction_directory(self, txn_id):
         return f'{TRANSACTION_STORAGE_FOLDER}/{txn_id}'
-    
+
     # def write_serialized_image(self, file_url, image_path):
     #     LoggingManager().log(f'Writing image {image_path}', LoggingLevel.INFO)
     #     dataframe_metadata = None
@@ -82,7 +82,7 @@ class OptimizedTransactionManager():
     #             self.storage_engine.create(dataframe_metadata)
 
     #         self.storage_engine.write(dataframe_metadata, Batch(frames_df))
-    
+
     def begin_transaction(self) -> int:
         this_txn = self._txn_counter
         self._txn_table[this_txn] = TransactionMetadata(this_txn)
@@ -96,7 +96,7 @@ class OptimizedTransactionManager():
         self.log_manager.log_begin_txn_record(this_txn)
 
         return this_txn
-    
+
     def commit_transaction(self, txn_id: int):
         self.log_manager.log_commit_txn_record(txn_id)
 
@@ -112,7 +112,7 @@ class OptimizedTransactionManager():
             # Do logical logging
             # Write log record to file
             update_lsn = self.log_manager.log_logical_update_record(txn_id, dataframe_metadata, update_arguments)
-                
+
         else:
             # Fallback to physical logging
             # Save before image deltas of group dataframes
@@ -120,7 +120,7 @@ class OptimizedTransactionManager():
             self._txn_table[txn_id].increment_file_version(dataframe_metadata.file_url)
             before_image_base_path = f'{self.get_transaction_directory(txn_id)}/{dataframe_metadata.file_url}.v{file_version}'
             os.makedirs(os.path.dirname(before_image_base_path), exist_ok=True)
-            
+
             start_group = int(update_arguments.start_frame // BATCH_SIZE)
             end_group = int(update_arguments.end_frame // BATCH_SIZE)
             curr_group = start_group
@@ -140,13 +140,16 @@ class OptimizedTransactionManager():
                     curr_group = curr_group + 1
                 except GroupDoesNotExistException as e:
                     break
-            
+
             # Write log record to file
             update_lsn = self.log_manager.log_physical_update_record(txn_id, dataframe_metadata, update_arguments, before_image_base_path)
-        
+
         # Apply update through the buffer manager
         apply_object_update_arguments_to_buffer_manager(self.buffer_manager,
                                                         self.opencv_update_processor,
                                                         dataframe_metadata,
                                                         update_arguments,
                                                         update_lsn)
+
+    def recover(self):
+        self.log_manager.recover_log()

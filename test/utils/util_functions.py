@@ -112,7 +112,7 @@ def dataframes_equal(df1: pd.DataFrame, df2: pd.DataFrame) -> bool:
     if df1['id'].max() != df2['id'].max():
         LoggingManager().log(f'Dataframes have different sizes', LoggingLevel.DEBUG)
         return False
-    
+
     max_frame = df1['id'].max()
     i = df1['id'].min()
     while i <= max_frame:
@@ -125,6 +125,9 @@ def dataframes_equal(df1: pd.DataFrame, df2: pd.DataFrame) -> bool:
     return True
 
 def clear_folder(dir_name: str):
+    if not os.path.isdir(dir_name):
+        os.mkdir(dir_name)
+
     for filename in os.listdir(dir_name):
         file_path = os.path.join(dir_name, filename)
         if os.path.isfile(file_path) or os.path.islink(file_path):
