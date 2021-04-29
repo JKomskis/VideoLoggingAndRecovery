@@ -13,11 +13,10 @@ def init_argparse() -> argparse.ArgumentParser:
 def generate_prefixes(file_name: str) -> None:
     # Video prefix lengths, in minutes
     # video_prefix_lengths_min = [0.5, 1, 5, 10, 15, 20, 25, 30]
-    video_prefix_lengths_min = [0.1, 0.5, 1, 2, 3, 4, 5]
+    video_prefix_lengths_min = [0.1, 0.5, 1, 2, 2.5, 3, 4, 5]
     video_prefix_lengths_sec = [int(i * 60) for i in video_prefix_lengths_min]
 
-    video_name = 'traffic001'
-    video_file = f'{INPUT_VIDEO_FOLDER}/{video_name}.mp4'
+    video_file = f'{INPUT_VIDEO_FOLDER}/{file_name}.mp4'
 
     video = cv2.VideoCapture(video_file)
     width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -26,7 +25,7 @@ def generate_prefixes(file_name: str) -> None:
     # fourcc = int(video.get(cv2.CAP_PROP_FOURCC))
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
-    output_video_files = [cv2.VideoWriter(f'{INPUT_VIDEO_FOLDER}/{video_name}_{length}.mp4', fourcc, fps, (width, height)) \
+    output_video_files = [cv2.VideoWriter(f'{INPUT_VIDEO_FOLDER}/{file_name}_{length}.mp4', fourcc, fps, (width, height)) \
         for length in video_prefix_lengths_sec]
 
     video_prefix_lengths_frames = [int(i * 60 * fps) for i in video_prefix_lengths_min]
