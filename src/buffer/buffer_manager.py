@@ -86,10 +86,10 @@ class BufferManager():
         self._lru = list(filter(lambda curr_slot_num: curr_slot_num != slot_num, self._lru)) + [slot_num]
     
     def write_slot(self, table: DataFrameMetadata, rows: Batch) -> None:
-        LoggingManager().log(f'Writing table {table.file_url} group {rows.get_group_num()}', LoggingLevel.INFO)
+        LoggingManager().log(f'Writing table {table.file_url} group {rows.get_group_num()}', LoggingLevel.DEBUG)
         slot, slot_num = self._get_slot(table, rows.get_group_num())
         if slot == None:
-            LoggingManager().log(f'Getting table from storage engine', LoggingLevel.INFO)
+            LoggingManager().log(f'Getting table from storage engine', LoggingLevel.DEBUG)
             batch = list(self._storage_engine.read(table, group_num=rows.get_group_num()))[0]
             slot_num = self._get_free_slot()
             self._slots[slot_num] = BufferManagerSlot(table, batch)
@@ -108,11 +108,11 @@ class BufferManager():
         slot, slot_num = self._get_slot(table, group_num)
         batch = None
         if slot == None:
-            LoggingManager().log(f'Reading table {table.file_url} group {group_num} from storage engine', LoggingLevel.INFO)
+            LoggingManager().log(f'Reading table {table.file_url} group {group_num} from storage engine', LoggingLevel.DEBUG)
             batch = list(self._storage_engine.read(table, group_num=group_num))[0]
             slot_num = self._get_free_slot()
             self._slots[slot_num] = BufferManagerSlot(table, batch)
-            LoggingManager().log(f'Reading into slot {slot_num}', LoggingLevel.INFO)
+            LoggingManager().log(f'Reading into slot {slot_num}', LoggingLevel.DEBUG)
         else:
             batch = self._slots[slot_num].rows
 
@@ -121,7 +121,7 @@ class BufferManager():
     
     def flush_slot(self, slot_num: int) -> None:
         if self._slots[slot_num] != None and self._slots[slot_num].dirty:
-            LoggingManager().log(f'Flushing slot {slot_num}', LoggingLevel.INFO)
+            LoggingManager().log(f'Flushing slot {slot_num}', LoggingLevel.DEBUG)
             self._storage_engine.write(self._slots[slot_num].dataframe_metadata, self._slots[slot_num].rows)
             self._slots[slot_num].dirty = False
 

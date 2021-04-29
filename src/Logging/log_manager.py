@@ -60,24 +60,24 @@ class LogManager():
     # each log record should include txn_id, offset of last log record for this txn,
     # type of record, and length of record so we can quickly seek over it
     def log_begin_txn_record(self, txn_id: int) -> None:
-        LoggingManager().log(f'Begin txn {txn_id}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Begin txn {txn_id}', LoggingLevel.INFO)
         self._write_log_record(LogRecordType.BEGIN, txn_id)
 
     def log_update_record(self, txn_id: int, name: str, before_path: str, after_path: str) -> None:
-        LoggingManager().log(f'Update, txn {txn_id} name {name} from {before_path} to {after_path}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Update, txn {txn_id} name {name} from {before_path} to {after_path}', LoggingLevel.INFO)
         self._write_log_record(LogRecordType.UPDATE, txn_id, [
             name.encode("utf8"), before_path.encode("utf8"), after_path.encode("utf8")
         ])
         # write log record that includes txn id, name of video updated, path to before image, and path to after image
 
     def log_commit_txn_record(self, txn_id: int) -> None:
-        LoggingManager().log(f'Commit txn {txn_id}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Commit txn {txn_id}', LoggingLevel.INFO)
         self.log_file.flush()
         self._write_log_record(LogRecordType.COMMIT, txn_id)
         del self.last_lsn[txn_id]
 
     def log_abort_txn_record(self, txn_id: int) -> None:
-        LoggingManager().log(f'Abort txn {txn_id}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Abort txn {txn_id}', LoggingLevel.INFO)
         self.rollback_txn(txn_id)
         self._write_log_record(LogRecordType.ABORT, txn_id)
         del self.last_lsn[txn_id]
@@ -85,7 +85,7 @@ class LogManager():
     def rollback_txn(self, txn_id: int) -> [(str, str, str)]:
         rollbacks = []
 
-        LoggingManager().log(f'Rollback txn {txn_id}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Rollback txn {txn_id}', LoggingLevel.INFO)
         # read log file and undo txn's changes
         original_seek_offset = self.log_file.tell()
         lsn = self.last_lsn[txn_id]
@@ -107,7 +107,7 @@ class LogManager():
                 after_len = int.from_bytes(rest_of_entry[after_pos:after_pos+4], byteorder='little')
                 after_path = rest_of_entry[after_pos+4:after_pos+4+after_len].decode('utf8')
 
-                LoggingManager().log(f'Change to revert: name {name} from {after_path} back to {before_path}', LoggingLevel.DEBUG)
+                LoggingManager().log(f'Change to revert: name {name} from {after_path} back to {before_path}', LoggingLevel.INFO)
                 rollbacks.append((name, after_path, before_path))
 
         self.log_file.seek(original_seek_offset)
@@ -142,7 +142,7 @@ class LogManager():
 
             record_type = LogRecordType(rest_of_entry[0])
             read_txn_id = int.from_bytes(rest_of_entry[1:5], byteorder='little')
-            LoggingManager().log(f'Got type {record_type} txn_id {read_txn_id} at offset {offset}', LoggingLevel.DEBUG)
+            LoggingManager().log(f'Got type {record_type} txn_id {read_txn_id} at offset {offset}', LoggingLevel.INFO)
 
             self.last_lsn[read_txn_id] = offset
             if record_type == LogRecordType.COMMIT or record_type == LogRecordType.ABORT:
@@ -151,6 +151,6 @@ class LogManager():
             offset += entry_len
             assert offset == self.log_file.tell()
 
-        LoggingManager().log(f'Txn active during crash: {self.last_lsn}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Txn active during crash: {self.last_lsn}', LoggingLevel.INFO)
         for txn_id in list(self.last_lsn.keys()):
             self.log_abort_txn_record(txn_id)

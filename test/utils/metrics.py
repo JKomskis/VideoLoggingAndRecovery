@@ -18,7 +18,7 @@ class Timing:
         self.__end = 0.0
 
     def __enter__(self):
-        LoggingManager().log(f"Begin timing {self.__desc}", LoggingLevel.DEBUG)
+        LoggingManager().log(f"Begin timing {self.__desc}", LoggingLevel.INFO)
         self.__start = time.time()
         return self
 
