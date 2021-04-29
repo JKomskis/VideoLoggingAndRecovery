@@ -2,3 +2,6 @@ store
 __pycache__
 data
 transaction_storage
+
+benchmark_data/*
+!benchmark_data/.gitkeep
