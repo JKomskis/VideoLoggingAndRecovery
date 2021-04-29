@@ -7,3 +7,4 @@ venv
 
 benchmark_data/*
 !benchmark_data/.gitkeep
+.vscode

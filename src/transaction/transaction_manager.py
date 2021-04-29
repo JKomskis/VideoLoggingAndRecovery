@@ -134,3 +134,6 @@ class TransactionManager():
 
         # Write change to petastorm
         self.write_serialized_image(dataframe_metadata.file_url, after_image_file_path)
+
+    def recover(self):
+        self.log_manager.recover_log()
