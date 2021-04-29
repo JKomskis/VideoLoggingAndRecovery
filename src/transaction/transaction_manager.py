@@ -136,4 +136,9 @@ class TransactionManager():
         self.write_serialized_image(dataframe_metadata.file_url, after_image_file_path)
 
     def recover(self):
-        self.log_manager.recover_log()
+        txns_to_rollback = self.log_manager.recover_log()
+        for txn_id in list(txns_to_rollback.keys()):
+            for (file_url, after_path, before_path) in txns_to_rollback[txn_id]:
+                self.write_serialized_image(file_url, before_path)
+            self.log_manager.log_abort_txn_record(txn_id)
+

@@ -78,7 +78,6 @@ class LogManager():
 
     def log_abort_txn_record(self, txn_id: int) -> None:
         LoggingManager().log(f'Abort txn {txn_id}', LoggingLevel.INFO)
-        self.rollback_txn(txn_id)
         self._write_log_record(LogRecordType.ABORT, txn_id)
         del self.last_lsn[txn_id]
 
@@ -130,7 +129,7 @@ class LogManager():
     #   I think it should be sufficient to just call abort_txn here?
     #   it does rollback, writes an abort record, and removes from LSN table
     # Redo is not needed since updates immediately write their changes to the storage engine
-    def recover_log(self) -> None:
+    def recover_log(self) -> dict:
         self.log_file.seek(0)
         offset = 0
         while True:
@@ -152,5 +151,7 @@ class LogManager():
             assert offset == self.log_file.tell()
 
         LoggingManager().log(f'Txn active during crash: {self.last_lsn}', LoggingLevel.INFO)
+        rollbacks = {}
         for txn_id in list(self.last_lsn.keys()):
-            self.log_abort_txn_record(txn_id)
+            rollbacks[txn_id] = self.rollback_txn(txn_id)
+        return rollbacks

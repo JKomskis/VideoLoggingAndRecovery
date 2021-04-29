@@ -11,7 +11,8 @@ from src.config.constants import BENCHMARK_DATA_FOLDER
 
 benchmark_labels = {
     'num_updates': ('Number of Updates'),
-    'num_commits': ('Number of Committed Transactions')
+    'num_commits': ('Number of Committed Transactions'),
+    'num_aborts': ('Number of Aborted Transactions')
 }
 
 def plot(benchmark_name: str, x_label: str, y_label: str = 'Time (s)'):

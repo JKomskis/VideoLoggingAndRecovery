@@ -2,6 +2,8 @@ import os
 import shutil
 import sys
 
+from src.config.constants import SHADOW_PETASTORM_STORAGE_FOLDER, \
+                                PETASTORM_STORAGE_FOLDER
 from src.storage.partitioned_petastorm_storage_engine import PartitionedPetastormStorageEngine
 from src.storage.petastorm_storage_engine import PetastormStorageEngine
 from test.utils.util_functions import write_file
