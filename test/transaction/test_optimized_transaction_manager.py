@@ -52,10 +52,7 @@ class OptimizedTransactionManagerTest(unittest.TestCase):
         transaction_directory_path = f'{TRANSACTION_STORAGE_FOLDER}/{txn_id}'
         self.assertTrue(os.path.isdir(transaction_directory_path))
     
-    @ignore_warnings
-    def test_should_update_video_in_buffer_manager(self):
-        update_operation = ObjectUpdateArguments('invert_color', 0, 299)
-
+    def do_test_should_update_video_in_buffer_manager(self, update_operation):
         dataframe_metadata = write_file(self.storage_engine, 'traffic001_6', include_lsn=True)
 
         video_frames = read_file_from_petastorm(self.storage_engine, dataframe_metadata)
@@ -78,11 +75,17 @@ class OptimizedTransactionManagerTest(unittest.TestCase):
         self.assertTrue(dataframes_equal(expected_updated_video_frames, actual_updated_video_frames))
 
     @ignore_warnings
-    def test_should_rollback_transaction_on_abort(self):
-        update_operations = [ObjectUpdateArguments('invert_color', 0, 99),
-                            ObjectUpdateArguments('invert_color', 100, 199)
-        ]
+    def test_should_update_video_in_buffer_manager_logical(self):
+        update_operation = ObjectUpdateArguments('invert_color', 0, 299)
+        self.do_test_should_update_video_in_buffer_manager(update_operation)
 
+    @ignore_warnings
+    def test_should_update_video_in_buffer_manager_physical(self):
+        update_operation = ObjectUpdateArguments('grayscale', 0, 299)
+        self.do_test_should_update_video_in_buffer_manager(update_operation)
+
+    @ignore_warnings
+    def do_test_should_rollback_transaction_on_abort(self, update_operations):
         dataframe_metadata = write_file(self.storage_engine, 'traffic001_6', include_lsn=True)
 
         video_frames = read_file_from_petastorm(self.storage_engine, dataframe_metadata)
@@ -109,11 +112,21 @@ class OptimizedTransactionManagerTest(unittest.TestCase):
         self.assertFalse(dataframes_equal(updated_video_frames, actual_updated_video_frames))
     
     @ignore_warnings
-    def test_recovery_should_redo_committed_transactions(self):
+    def test_should_rollback_transaction_on_abort_logical(self):
         update_operations = [ObjectUpdateArguments('invert_color', 0, 99),
                             ObjectUpdateArguments('invert_color', 100, 199)
         ]
+        self.do_test_should_rollback_transaction_on_abort(update_operations)
 
+    @ignore_warnings
+    def test_should_rollback_transaction_on_abort_physical(self):
+        update_operations = [ObjectUpdateArguments('grayscale', 0, 99),
+                            ObjectUpdateArguments('grayscale', 100, 199)
+        ]
+        self.do_test_should_rollback_transaction_on_abort(update_operations)
+    
+    @ignore_warnings
+    def do_test_recovery_should_redo_committed_transactions(self, update_operations: ObjectUpdateArguments, mode: str):
         dataframe_metadata = write_file(self.storage_engine, 'traffic001_6', include_lsn=True)
 
         video_frames = read_file_from_petastorm(self.storage_engine, dataframe_metadata)
@@ -131,6 +144,14 @@ class OptimizedTransactionManagerTest(unittest.TestCase):
         txn_mgr.commit_transaction(txn_id)
 
         # Reset buffer manager
+        if mode == "Flush none":
+            pass
+        elif mode == "Flush 0":
+            buffer_mgr.flush_slot(0)
+        elif mode == "Flush 1":
+            buffer_mgr.flush_slot(1)
+        elif mode == "Flush all":
+            buffer_mgr.flush_all_slots()
         buffer_mgr.discard_all_slots()
         # Recovery from log
         log_mgr.recover_log()
@@ -146,125 +167,62 @@ class OptimizedTransactionManagerTest(unittest.TestCase):
         self.assertFalse(dataframes_equal(video_frames, actual_updated_video_frames))
 
     @ignore_warnings
-    def test_recovery_should_redo_committed_transactions_partial_flush_1(self):
+    def test_recovery_should_redo_committed_transactions_logical(self):
         update_operations = [ObjectUpdateArguments('invert_color', 0, 99),
                             ObjectUpdateArguments('invert_color', 100, 199)
         ]
-
-        dataframe_metadata = write_file(self.storage_engine, 'traffic001_6', include_lsn=True)
-
-        video_frames = read_file_from_petastorm(self.storage_engine, dataframe_metadata)
-        updated_video_frames = apply_update_to_dataframe(video_frames, update_operations[0])
-        updated_video_frames = apply_update_to_dataframe(updated_video_frames, update_operations[1])
-
-        buffer_mgr = BufferManager(200, self.storage_engine)
-        log_mgr = LogicalLogManager(buffer_mgr)
-        txn_mgr = OptimizedTransactionManager(storage_engine_passed=self.storage_engine,
-                                    log_manager_passed=log_mgr,
-                                    buffer_manager_passed=buffer_mgr)
-        txn_id = txn_mgr.begin_transaction()
-        txn_mgr.update_object(txn_id, dataframe_metadata, update_operations[0])
-        txn_mgr.update_object(txn_id, dataframe_metadata, update_operations[1])
-        txn_mgr.commit_transaction(txn_id)
-
-        # Reset buffer manager
-        buffer_mgr.flush_slot(0)
-        buffer_mgr.discard_all_slots()
-        # Recovery from log
-        log_mgr.recover_log()
-
-        # Check contents of buffer manager after recovery
-        actual_updated_video_frames = pd.DataFrame()
-        for i in range(4):
-            batch = buffer_mgr.read_slot(dataframe_metadata, i)
-            actual_updated_video_frames = actual_updated_video_frames.append(batch.frames, ignore_index=True)
-
-        LoggingManager().log(f'Asserting buffer manager is updated', LoggingLevel.INFO)
-        self.assertTrue(dataframes_equal(updated_video_frames, actual_updated_video_frames))
-        self.assertFalse(dataframes_equal(video_frames, actual_updated_video_frames))
+        self.do_test_recovery_should_redo_committed_transactions(update_operations, "Flush none")
 
     @ignore_warnings
-    def test_recovery_should_redo_committed_transactions_partial_flush_2(self):
-        update_operations = [ObjectUpdateArguments('invert_color', 0, 99),
-                            ObjectUpdateArguments('invert_color', 100, 199)
+    def test_recovery_should_redo_committed_transactions_physical(self):
+        update_operations = [ObjectUpdateArguments('contrast_brightness', 0, 99, contrast=2, brightness=0),
+                            ObjectUpdateArguments('contrast_brightness', 100, 199, contrast=2, brightness=0)
         ]
-
-        dataframe_metadata = write_file(self.storage_engine, 'traffic001_6', include_lsn=True)
-
-        video_frames = read_file_from_petastorm(self.storage_engine, dataframe_metadata)
-        updated_video_frames = apply_update_to_dataframe(video_frames, update_operations[0])
-        updated_video_frames = apply_update_to_dataframe(updated_video_frames, update_operations[1])
-
-        buffer_mgr = BufferManager(200, self.storage_engine)
-        log_mgr = LogicalLogManager(buffer_mgr)
-        txn_mgr = OptimizedTransactionManager(storage_engine_passed=self.storage_engine,
-                                    log_manager_passed=log_mgr,
-                                    buffer_manager_passed=buffer_mgr)
-        txn_id = txn_mgr.begin_transaction()
-        txn_mgr.update_object(txn_id, dataframe_metadata, update_operations[0])
-        txn_mgr.update_object(txn_id, dataframe_metadata, update_operations[1])
-        txn_mgr.commit_transaction(txn_id)
-
-        # Reset buffer manager
-        buffer_mgr.flush_slot(1)
-        buffer_mgr.discard_all_slots()
-        # Recovery from log
-        log_mgr.recover_log()
-
-        # Check contents of buffer manager after recovery
-        actual_updated_video_frames = pd.DataFrame()
-        for i in range(4):
-            batch = buffer_mgr.read_slot(dataframe_metadata, i)
-            actual_updated_video_frames = actual_updated_video_frames.append(batch.frames, ignore_index=True)
-
-        LoggingManager().log(f'Asserting buffer manager is updated', LoggingLevel.INFO)
-        self.assertTrue(dataframes_equal(updated_video_frames, actual_updated_video_frames))
-        self.assertFalse(dataframes_equal(video_frames, actual_updated_video_frames))
+        self.do_test_recovery_should_redo_committed_transactions(update_operations, "Flush none")
 
     @ignore_warnings
-    def test_recovery_should_redo_committed_transactions_full_flush(self):
+    def test_recovery_should_redo_committed_transactions_partial_flush_1_logical(self):
         update_operations = [ObjectUpdateArguments('invert_color', 0, 99),
                             ObjectUpdateArguments('invert_color', 100, 199)
         ]
-
-        dataframe_metadata = write_file(self.storage_engine, 'traffic001_6', include_lsn=True)
-
-        video_frames = read_file_from_petastorm(self.storage_engine, dataframe_metadata)
-        updated_video_frames = apply_update_to_dataframe(video_frames, update_operations[0])
-        updated_video_frames = apply_update_to_dataframe(updated_video_frames, update_operations[1])
-
-        buffer_mgr = BufferManager(200, self.storage_engine)
-        log_mgr = LogicalLogManager(buffer_mgr)
-        txn_mgr = OptimizedTransactionManager(storage_engine_passed=self.storage_engine,
-                                    log_manager_passed=log_mgr,
-                                    buffer_manager_passed=buffer_mgr)
-        txn_id = txn_mgr.begin_transaction()
-        txn_mgr.update_object(txn_id, dataframe_metadata, update_operations[0])
-        txn_mgr.update_object(txn_id, dataframe_metadata, update_operations[1])
-        txn_mgr.commit_transaction(txn_id)
-
-        # Reset buffer manager
-        buffer_mgr.flush_all_slots()
-        buffer_mgr.discard_all_slots()
-        # Recovery from log
-        log_mgr.recover_log()
-
-        # Check contents of buffer manager after recovery
-        actual_updated_video_frames = pd.DataFrame()
-        for i in range(4):
-            batch = buffer_mgr.read_slot(dataframe_metadata, i)
-            actual_updated_video_frames = actual_updated_video_frames.append(batch.frames, ignore_index=True)
-
-        LoggingManager().log(f'Asserting buffer manager is updated', LoggingLevel.INFO)
-        self.assertTrue(dataframes_equal(updated_video_frames, actual_updated_video_frames))
-        self.assertFalse(dataframes_equal(video_frames, actual_updated_video_frames))
+        self.do_test_recovery_should_redo_committed_transactions(update_operations, "Flush 0")
 
     @ignore_warnings
-    def test_recovery_update_and_clr_in_log(self):
+    def test_recovery_should_redo_committed_transactions_partial_flush_1_physical(self):
+        update_operations = [ObjectUpdateArguments('contrast_brightness', 0, 99, contrast=2, brightness=0),
+                            ObjectUpdateArguments('contrast_brightness', 100, 199, contrast=2, brightness=0)
+        ]
+        self.do_test_recovery_should_redo_committed_transactions(update_operations, "Flush 0")
+
+    @ignore_warnings
+    def test_recovery_should_redo_committed_transactions_partial_flush_2_logical(self):
         update_operations = [ObjectUpdateArguments('invert_color', 0, 99),
                             ObjectUpdateArguments('invert_color', 100, 199)
         ]
+        self.do_test_recovery_should_redo_committed_transactions(update_operations, "Flush 1")
 
+    @ignore_warnings
+    def test_recovery_should_redo_committed_transactions_partial_flush_2_physical(self):
+        update_operations = [ObjectUpdateArguments('contrast_brightness', 0, 99, contrast=2, brightness=0),
+                            ObjectUpdateArguments('contrast_brightness', 100, 199, contrast=2, brightness=0)
+        ]
+        self.do_test_recovery_should_redo_committed_transactions(update_operations, "Flush 1")
+
+    @ignore_warnings
+    def test_recovery_should_redo_committed_transactions_flush_all_logical(self):
+        update_operations = [ObjectUpdateArguments('invert_color', 0, 99),
+                            ObjectUpdateArguments('invert_color', 100, 199)
+        ]
+        self.do_test_recovery_should_redo_committed_transactions(update_operations, "Flush all")
+
+    @ignore_warnings
+    def test_recovery_should_redo_committed_transactions_flush_all_physical(self):
+        update_operations = [ObjectUpdateArguments('contrast_brightness', 0, 99, contrast=2, brightness=0),
+                            ObjectUpdateArguments('contrast_brightness', 100, 199, contrast=2, brightness=0)
+        ]
+        self.do_test_recovery_should_redo_committed_transactions(update_operations, "Flush all")
+
+    def do_test_recovery_update_and_clr_in_log(self, update_operations):
         dataframe_metadata = write_file(self.storage_engine, 'traffic001_6', include_lsn=True)
 
         video_frames = read_file_from_petastorm(self.storage_engine, dataframe_metadata)
@@ -303,6 +261,20 @@ class OptimizedTransactionManagerTest(unittest.TestCase):
         LoggingManager().log(f'Asserting buffer manager is updated', LoggingLevel.INFO)
         self.assertTrue(dataframes_equal(video_frames, actual_updated_video_frames))
         self.assertFalse(dataframes_equal(updated_video_frames, actual_updated_video_frames))
+
+    @ignore_warnings
+    def test_recovery_update_and_clr_in_log_logical(self):
+        update_operations = [ObjectUpdateArguments('invert_color', 0, 99),
+                            ObjectUpdateArguments('invert_color', 100, 199)
+        ]
+        self.do_test_recovery_update_and_clr_in_log(update_operations)
+
+    @ignore_warnings
+    def test_recovery_update_and_clr_in_log_physical(self):
+        update_operations = [ObjectUpdateArguments('contrast_brightness', 0, 99, contrast=2, brightness=0),
+                            ObjectUpdateArguments('contrast_brightness', 100, 199, contrast=2, brightness=0)
+        ]
+        self.do_test_recovery_update_and_clr_in_log(update_operations)
 
 if __name__ == '__main__':
     unittest.main()     
