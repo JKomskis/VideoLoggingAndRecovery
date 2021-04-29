@@ -15,6 +15,7 @@ from src.models.storage.batch import Batch
 from src.transaction.opencv_update_processor import OpenCVUpdateProcessor
 from src.config.constants import TRANSACTION_STORAGE_FOLDER, INPUT_VIDEO_FOLDER
 from src.utils.logging_manager import LoggingLevel, LoggingManager
+from src.Logging.log_manager import LogManager
 
 class TransactionManager():
     def __init__(self, storage_engine_passed=None):
@@ -23,6 +24,7 @@ class TransactionManager():
         else:
             self.storage_engine = PetastormStorageEngine()
         self.opencv_update_processor = OpenCVUpdateProcessor()
+        self.log_manager = LogManager()
         self._txn_table = {}
         self._txn_counter_file_path = f'{TRANSACTION_STORAGE_FOLDER}/txn_counter'
         self._txn_counter = 1
@@ -35,14 +37,14 @@ class TransactionManager():
         else:
             with open(self._txn_counter_file_path, 'rb') as txn_counter_file:
                 self._txn_counter = struct.unpack('i', txn_counter_file.read())[0]
-    
+
     def _write_txn_counter(self):
         with open(self._txn_counter_file_path, 'wb') as txn_counter_file:
             txn_counter_file.write(struct.pack('i', self._txn_counter))
-    
+
     def get_transaction_directory(self, txn_id):
         return f'{TRANSACTION_STORAGE_FOLDER}/{txn_id}'
-    
+
     def write_serialized_image(self, file_url, image_path):
         LoggingManager().log(f'Writing image {image_path}', LoggingLevel.INFO)
         dataframe_metadata = None
@@ -65,7 +67,7 @@ class TransactionManager():
                 self.storage_engine.create(dataframe_metadata)
 
             self.storage_engine.write(dataframe_metadata, Batch(frames_df))
-    
+
     def begin_transaction(self) -> int:
         this_txn = self._txn_counter
         self._txn_table[this_txn] = TransactionMetadata(this_txn)
@@ -76,23 +78,26 @@ class TransactionManager():
         shutil.rmtree(txn_directory_path, ignore_errors=True)
         os.mkdir(txn_directory_path)
 
-        # TODO: write record to log
+        self.log_manager.log_begin_txn_record(this_txn)
 
         return this_txn
-    
+
     def commit_transaction(self, txn_id: int):
-        # TODO: write record to log
+        self.log_manager.log_commit_txn_record(txn_id)
 
         # erase transaction folder
         shutil.rmtree(self.get_transaction_directory(txn_id))
 
     def abort_transaction(self, txn_id: int):
-        file_urls = self._txn_table[txn_id].get_updated_files()
-        for file_url in file_urls:
-            image_path = f'{self.get_transaction_directory(txn_id)}/{file_url}.v0_old'
-            self.write_serialized_image(file_url, image_path)
+        # file_urls = self._txn_table[txn_id].get_updated_files()
+        # for file_url in file_urls:
+        #     image_path = f'{self.get_transaction_directory(txn_id)}/{file_url}.v0_old'
+        #     self.write_serialized_image(file_url, image_path)
 
-        # TODO: write record to log
+        for (file_url, after_path, before_path) in self.log_manager.rollback_txn(txn_id):
+            self.write_serialized_image(file_url, before_path)
+
+        self.log_manager.log_abort_txn_record(txn_id)
 
         # erase transaction folder
         shutil.rmtree(self.get_transaction_directory(txn_id))
@@ -119,8 +124,13 @@ class TransactionManager():
             after_image_batch.to_pickle(f'{after_image_file_path}_{batch_num}')
 
             batch_num = batch_num + 1
-        
-        # TODO: write log record to file
+
+        self.log_manager.log_update_record(
+            txn_id,
+            dataframe_metadata.file_url,
+            before_image_file_path,
+            after_image_file_path
+        )
 
         # Write change to petastorm
         self.write_serialized_image(dataframe_metadata.file_url, after_image_file_path)

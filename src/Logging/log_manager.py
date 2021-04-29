@@ -82,7 +82,9 @@ class LogManager():
         self._write_log_record(LogRecordType.ABORT, txn_id)
         del self.last_lsn[txn_id]
 
-    def rollback_txn(self, txn_id: int) -> None:
+    def rollback_txn(self, txn_id: int) -> [(str, str, str)]:
+        rollbacks = []
+
         LoggingManager().log(f'Rollback txn {txn_id}', LoggingLevel.DEBUG)
         # read log file and undo txn's changes
         original_seek_offset = self.log_file.tell()
@@ -105,11 +107,14 @@ class LogManager():
                 after_len = int.from_bytes(rest_of_entry[after_pos:after_pos+4], byteorder='little')
                 after_path = rest_of_entry[after_pos+4:after_pos+4+after_len].decode('utf8')
 
-                LoggingManager().log(f'Reverting txn_id {read_txn_id} name {name} from {after_path} back to {before_path}', LoggingLevel.DEBUG)
-                # TODO: actually revert the update
+                LoggingManager().log(f'Change to revert: name {name} from {after_path} back to {before_path}', LoggingLevel.DEBUG)
+                rollbacks.append((name, after_path, before_path))
 
         self.log_file.seek(original_seek_offset)
-        # May be able to use write_serialized_image in transaction_manger for doing this
+
+        return rollbacks
+        # Assume caller knows how to do the rollback to avoid circular dependency
+        # E.g. may be able to use write_serialized_image
 
     # Two phase recovery protocol
     # 1. Analysis
