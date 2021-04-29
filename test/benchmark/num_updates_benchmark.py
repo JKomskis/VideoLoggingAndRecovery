@@ -44,7 +44,7 @@ class NumUpdatesBenchmarkPartitioned(AbstractBenchmark):
                                                     buffer_manager_passed=self.buffer_mgr,
                                                     force_physical_logging=self.hybrid_protocol)
         
-        self.update_operations = [ObjectUpdateArguments('invert_color', 100, 225) for i in range(self.num_updates)]
+        self.update_operations = [ObjectUpdateArguments('invert_color', 0, 4499) for i in range(self.num_updates)]
 
     def _tearDown(self):
         clear_petastorm_storage_folder()
@@ -71,7 +71,7 @@ class NumUpdatesBenchmark(AbstractBenchmark):
 
         self.txn_mgr = TransactionManager(storage_engine_passed=storage_engine)
         
-        self.update_operations = [ObjectUpdateArguments('invert_color', 100, 225) for i in range(self.num_updates)]
+        self.update_operations = [ObjectUpdateArguments('invert_color', 0, 4499) for i in range(self.num_updates)]
 
     def _tearDown(self):
         clear_petastorm_storage_folder()
@@ -99,27 +99,27 @@ def tearDown():
     shutil.rmtree(SHADOW_PETASTORM_STORAGE_FOLDER)
 
 if __name__ == '__main__':
-    LoggingManager().setEffectiveLevel(LoggingLevel.DEBUG)
+    LoggingManager().setEffectiveLevel(LoggingLevel.INFO)
 
     data_df = pd.DataFrame(columns=['protocol', 'num_updates', 'time'])
 
     setUpPartitioned()
     # Logical logging
-    for i in range(0, 31, 5):
+    for i in range(0, 9, 2):
         if i == 0:
             i = 1
-        benchmark = NumUpdatesBenchmarkPartitioned(i, False, 7)
+        benchmark = NumUpdatesBenchmarkPartitioned(i, False, 5)
         benchmark.run_benchmark()
         print(f'{benchmark.time_measurements}')
         for result in benchmark.time_measurements:
             data_df = data_df.append({'protocol': 'Logical', 'num_updates': i, 'time': result}, ignore_index=True)
         data_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_updates.csv')
 
-    # Physical logging
-    for i in range(0, 31, 5):
+    # Hybrid logging
+    for i in range(0, 9, 2):
         if i == 0:
             i = 1
-        benchmark = NumUpdatesBenchmarkPartitioned(i, True, 7)
+        benchmark = NumUpdatesBenchmarkPartitioned(i, True, 5)
         benchmark.run_benchmark()
         print(f'{benchmark.time_measurements}')
         for result in benchmark.time_measurements:
@@ -127,8 +127,9 @@ if __name__ == '__main__':
         data_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_updates.csv')
     tearDown()
 
+    # Physical logging
     setUpRegular()
-    for i in range(0, 11, 2):
+    for i in range(0, 9, 2):
         if i == 0:
             i = 1
         benchmark = NumUpdatesBenchmark(i)

@@ -25,7 +25,7 @@ class PartitionedPetastormStorageEngine():
         spark_conf.setMaster('local')
         spark_conf.setAppName('VLR')
         spark_conf.set('spark.logConf', 'true')
-        spark_conf.set('spark.driver.memory', '2g')
+        spark_conf.set('spark.driver.memory', '8g')
         spark_conf.set('spark.sql.execution.arrow.pyspark.enabled', 'true')
 
         self.spark_session = SparkSession.builder.config(conf = spark_conf).getOrCreate()

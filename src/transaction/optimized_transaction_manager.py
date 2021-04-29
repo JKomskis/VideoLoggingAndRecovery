@@ -133,7 +133,7 @@ class OptimizedTransactionManager():
                         if update_arguments.start_frame <= row.id and update_arguments.end_frame >= row.id:
                             old_df = old_df.append(row, ignore_index=True)
 
-                    # Save logically to transaction's folder
+                    # Save physically to transaction's folder
                     before_image_file_path = f'{before_image_base_path}_{curr_group}'
                     old_df.to_pickle(before_image_file_path)
 

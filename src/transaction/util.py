@@ -23,7 +23,7 @@ def apply_object_update_arguments_to_buffer_manager(buffer_manager: BufferManage
         try:
             batch = buffer_manager.read_slot(dataframe_metadata, curr_group)
 
-            LoggingManager().log(f'lsn: {lsn} max_lsn: {batch.frames["lsn"].max()}', LoggingLevel.INFO)
+            LoggingManager().log(f'lsn: {lsn} max_lsn: {batch.frames["lsn"].max()}', LoggingLevel.DEBUG)
 
             if lsn > batch.frames['lsn'].max():
                 new_df = pd.DataFrame()
@@ -48,7 +48,7 @@ def apply_before_deltas_to_buffer_manager(buffer_manager: BufferManager,
             curr_group = int(path[path.rfind('_')+1:])
             batch = buffer_manager.read_slot(dataframe_metadata, curr_group)
 
-            LoggingManager().log(f'lsn: {lsn} max_lsn: {batch.frames["lsn"].max()}', LoggingLevel.INFO)
+            LoggingManager().log(f'lsn: {lsn} max_lsn: {batch.frames["lsn"].max()}', LoggingLevel.DEBUG)
 
             if lsn > batch.frames['lsn'].max():
                 orig_df = pd.read_pickle(path)

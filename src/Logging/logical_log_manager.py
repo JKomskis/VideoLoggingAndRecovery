@@ -76,40 +76,40 @@ class LogicalLogManager():
     # each log record should include txn_id, offset of last log record for this txn,
     # type of record, and length of record so we can quickly seek over it
     def log_begin_txn_record(self, txn_id: int) -> None:
-        LoggingManager().log(f'Begin txn {txn_id}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Begin txn {txn_id}', LoggingLevel.INFO)
         self._write_log_record(LogRecordType.BEGIN, txn_id)
 
     def log_logical_update_record(self, txn_id: int, dataframe_metadata: DataFrameMetadata, update_arguments: ObjectUpdateArguments) -> int:
         # write log record that includes txn id, dataframe_metadata, and update operation
-        LoggingManager().log(f'Update, txn {txn_id} name {dataframe_metadata.file_url} using {update_arguments}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Update, txn {txn_id} name {dataframe_metadata.file_url} using {update_arguments}', LoggingLevel.INFO)
         return self._write_log_record(LogRecordType.LOGICAL_UPDATE, txn_id, [
             dataframe_metadata.serialize(), update_arguments.serialize()
         ])
     
     def log_physical_update_record(self, txn_id: int, dataframe_metadata: DataFrameMetadata, update_arguments: ObjectUpdateArguments, before_delta_path: str) -> int:
         # write log record that includes txn id, dataframe_metadata, and update operation
-        LoggingManager().log(f'Update, txn {txn_id} name {dataframe_metadata.file_url} using {update_arguments}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Update, txn {txn_id} name {dataframe_metadata.file_url} using {update_arguments}', LoggingLevel.INFO)
         return self._write_log_record(LogRecordType.PHYSICAL_UPDATE, txn_id, [
             dataframe_metadata.serialize(), update_arguments.serialize(), before_delta_path.encode("utf8")
         ])
 
     def log_commit_txn_record(self, txn_id: int) -> None:
-        LoggingManager().log(f'Commit txn {txn_id}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Commit txn {txn_id}', LoggingLevel.INFO)
         self.log_file.flush()
         self._write_log_record(LogRecordType.COMMIT, txn_id)
         del self.last_lsn[txn_id]
 
     def log_abort_txn_record(self, txn_id: int) -> None:
-        LoggingManager().log(f'Abort txn {txn_id}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Abort txn {txn_id}', LoggingLevel.INFO)
         self._write_log_record(LogRecordType.ABORT, txn_id)
     
     def log_txnend_record(self, txn_id: int) -> None:
-        LoggingManager().log(f'End txn {txn_id}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'End txn {txn_id}', LoggingLevel.INFO)
         self._write_log_record(LogRecordType.TXNEND, txn_id)
     
     def log_logical_clr_record(self, txn_id: int, dataframe_metadata: DataFrameMetadata, update_arguments: ObjectUpdateArguments, undo_next_lsn: int) -> int:
         # write log record that includes txn_id, dataframe_metadata, reversed update operation, and undo next lsn
-        LoggingManager().log(f'Logical CLR, txn {txn_id} name {dataframe_metadata.file_url} using {update_arguments}, undo_next_lsn {undo_next_lsn}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Logical CLR, txn {txn_id} name {dataframe_metadata.file_url} using {update_arguments}, undo_next_lsn {undo_next_lsn}', LoggingLevel.INFO)
         return self._write_log_record(LogRecordType.LOGICAL_CLR, txn_id, [
             dataframe_metadata.serialize(),
             update_arguments.serialize(),
@@ -118,7 +118,7 @@ class LogicalLogManager():
     
     def log_physical_clr_record(self, txn_id: int, dataframe_metadata: DataFrameMetadata, before_delta_path: str, undo_next_lsn: int) -> int:
         # write log record that includes txn_id, dataframe_metadata, before_delta_path, and undo next lsn
-        LoggingManager().log(f'Physical CLR, txn {txn_id} name {dataframe_metadata.file_url} with path {before_delta_path}, undo_next_lsn {undo_next_lsn}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Physical CLR, txn {txn_id} name {dataframe_metadata.file_url} with path {before_delta_path}, undo_next_lsn {undo_next_lsn}', LoggingLevel.INFO)
         return self._write_log_record(LogRecordType.PHYSICAL_CLR, txn_id, [
             dataframe_metadata.serialize(),
             before_delta_path.encode('utf8'),
@@ -126,7 +126,7 @@ class LogicalLogManager():
         ])
 
     def rollback_txn(self, txn_id: int) -> None:
-        LoggingManager().log(f'Rollback txn {txn_id}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Rollback txn {txn_id}', LoggingLevel.INFO)
         # read log file and undo txn's changes
         original_seek_offset = self.log_file.tell()
         lsn = self.last_lsn[txn_id]
@@ -157,7 +157,7 @@ class LogicalLogManager():
                         return
 
                 # Revert the update
-                LoggingManager().log(f'Reverting txn_id {read_txn_id} file_url {dataframe_metadata.file_url} using {reversed_update_arguments}', LoggingLevel.DEBUG)
+                LoggingManager().log(f'Reverting txn_id {read_txn_id} file_url {dataframe_metadata.file_url} using {reversed_update_arguments}', LoggingLevel.INFO)
                 apply_object_update_arguments_to_buffer_manager(self.buffer_manager,
                                                                 self.update_processor,
                                                                 dataframe_metadata,
@@ -179,7 +179,7 @@ class LogicalLogManager():
                         return
 
                 # Revert the update
-                LoggingManager().log(f'Reverting txn_id {read_txn_id} file_url {dataframe_metadata.file_url} with path {before_delta_path}', LoggingLevel.DEBUG)
+                LoggingManager().log(f'Reverting txn_id {read_txn_id} file_url {dataframe_metadata.file_url} with path {before_delta_path}', LoggingLevel.INFO)
                 apply_before_deltas_to_buffer_manager(self.buffer_manager,
                                                         dataframe_metadata,
                                                         before_delta_path,
@@ -188,12 +188,12 @@ class LogicalLogManager():
             # Don't undo logical clr, but set lsn to its undo_next_lsn value
             elif record_type == LogRecordType.LOGICAL_CLR:
                 dataframe_metadata, update_arguments, undo_next_lsn = self.parse_logical_clr_record(rest_of_entry)
-                LoggingManager().log(f'Found logical CLR, setting lsn to {undo_next_lsn}', LoggingLevel.DEBUG)
+                LoggingManager().log(f'Found logical CLR, setting lsn to {undo_next_lsn}', LoggingLevel.INFO)
                 lsn = undo_next_lsn
             # Don't undo physical clr, but set lsn to its undo_next_lsn value
             elif record_type == LogRecordType.PHYSICAL_CLR:
                 dataframe_metadata, before_delta_path, undo_next_lsn = self.parse_physical_clr_record(rest_of_entry)
-                LoggingManager().log(f'Found physical CLR, setting lsn to {undo_next_lsn}', LoggingLevel.DEBUG)
+                LoggingManager().log(f'Found physical CLR, setting lsn to {undo_next_lsn}', LoggingLevel.INFO)
                 lsn = undo_next_lsn
         
         self.log_file.seek(0, 2)
@@ -220,7 +220,7 @@ class LogicalLogManager():
     #   it does rollback, writes an abort record, and removes from LSN table
     def recover_log(self) -> None:
         # Analysis
-        LoggingManager().log(f'Starting analysis phase', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Starting analysis phase', LoggingLevel.INFO)
         self.log_file.seek(0)
         offset = 0
         while True:
@@ -231,7 +231,7 @@ class LogicalLogManager():
             rest_of_entry = self.log_file.read(entry_len - 4)
 
             record_type, record_txn_id, _ = self.parse_record_header(rest_of_entry)
-            LoggingManager().log(f'Got type {record_type} txn_id {record_txn_id} at offset {offset}', LoggingLevel.DEBUG)
+            LoggingManager().log(f'Got type {record_type} txn_id {record_txn_id} at offset {offset}', LoggingLevel.INFO)
 
             self.last_lsn[record_txn_id] = offset
             if record_type == LogRecordType.COMMIT or record_type == LogRecordType.TXNEND:
@@ -239,10 +239,10 @@ class LogicalLogManager():
 
             offset += entry_len
             assert offset == self.log_file.tell()
-        LoggingManager().log(f'Txn active during crash: {self.last_lsn}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Txn active during crash: {self.last_lsn}', LoggingLevel.INFO)
 
         # Redo
-        LoggingManager().log(f'Starting redo phase', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Starting redo phase', LoggingLevel.INFO)
         self.log_file.seek(0)
         offset = 0
         while True:
@@ -254,11 +254,11 @@ class LogicalLogManager():
             rest_of_entry = self.log_file.read(entry_len - 4)
 
             record_type, record_txn_id, _ = self.parse_record_header(rest_of_entry)
-            LoggingManager().log(f'Got type {record_type} txn_id {record_txn_id} at offset {offset}', LoggingLevel.DEBUG)
+            LoggingManager().log(f'Got type {record_type} txn_id {record_txn_id} at offset {offset}', LoggingLevel.INFO)
             # Redo logical update
             if record_type == LogRecordType.LOGICAL_UPDATE:
                 dataframe_metadata, update_arguments = self.parse_logical_update_record(rest_of_entry)
-                LoggingManager().log(f'Redoing logical update file_url {dataframe_metadata.file_url} using {update_arguments}', LoggingLevel.DEBUG)
+                LoggingManager().log(f'Redoing logical update file_url {dataframe_metadata.file_url} using {update_arguments}', LoggingLevel.INFO)
                 apply_object_update_arguments_to_buffer_manager(self.buffer_manager,
                                                                 self.update_processor,
                                                                 dataframe_metadata,
@@ -267,7 +267,7 @@ class LogicalLogManager():
             # Redo physical update
             elif record_type == LogRecordType.PHYSICAL_UPDATE:
                 dataframe_metadata, update_arguments, _ = self.parse_physical_update_record(rest_of_entry)
-                LoggingManager().log(f'Redoing physical update file_url {dataframe_metadata.file_url} using {update_arguments}', LoggingLevel.DEBUG)
+                LoggingManager().log(f'Redoing physical update file_url {dataframe_metadata.file_url} using {update_arguments}', LoggingLevel.INFO)
                 apply_object_update_arguments_to_buffer_manager(self.buffer_manager,
                                                                 self.update_processor,
                                                                 dataframe_metadata,
@@ -276,7 +276,7 @@ class LogicalLogManager():
             # Redo logical CLR
             elif record_type == LogRecordType.LOGICAL_CLR:
                 dataframe_metadata, update_arguments, _ = self.parse_logical_clr_record(rest_of_entry)
-                LoggingManager().log(f'Redoing logical clr file_url {dataframe_metadata.file_url} using {update_arguments}', LoggingLevel.DEBUG)
+                LoggingManager().log(f'Redoing logical clr file_url {dataframe_metadata.file_url} using {update_arguments}', LoggingLevel.INFO)
                 apply_object_update_arguments_to_buffer_manager(self.buffer_manager,
                                                                 self.update_processor,
                                                                 dataframe_metadata,
@@ -285,7 +285,7 @@ class LogicalLogManager():
             # Redo physical CLR
             elif record_type == LogRecordType.PHYSICAL_CLR:
                 dataframe_metadata, before_delta_path, undo_next_lsn = self.parse_physical_clr_record(rest_of_entry)
-                LoggingManager().log(f'Redoing physical CLR file_url {dataframe_metadata.file_url} with path {before_delta_path}', LoggingLevel.DEBUG)
+                LoggingManager().log(f'Redoing physical CLR file_url {dataframe_metadata.file_url} with path {before_delta_path}', LoggingLevel.INFO)
                 apply_before_deltas_to_buffer_manager(self.buffer_manager,
                                                       dataframe_metadata,
                                                       before_delta_path,
@@ -296,10 +296,10 @@ class LogicalLogManager():
         # Undo
         # Since we're not worrying about concurrent transactions, we can rollback
         # transactions in the order of their last LSN
-        LoggingManager().log(f'Starting undo phase', LoggingLevel.DEBUG)
+        LoggingManager().log(f'Starting undo phase', LoggingLevel.INFO)
         to_undo = list(self.last_lsn.items())
         to_undo.sort(key=lambda x: x[1], reverse=True)
-        LoggingManager().log(f'TXNs to undo: {to_undo}', LoggingLevel.DEBUG)
+        LoggingManager().log(f'TXNs to undo: {to_undo}', LoggingLevel.INFO)
         for txn_to_undo in to_undo:
             self.rollback_txn(txn_to_undo[0])
         

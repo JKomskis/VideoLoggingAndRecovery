@@ -51,7 +51,7 @@ class TransactionManager():
         first_batch = True
         for batch_path in sorted(glob.glob(f'{image_path}_*')):
             frames_df = pd.read_pickle(batch_path)
-            LoggingManager().log(f'Writing batch: {batch_path}', LoggingLevel.INFO)
+            LoggingManager().log(f'Writing batch: {batch_path}', LoggingLevel.DEBUG)
 
             if first_batch:
                 first_batch = False
