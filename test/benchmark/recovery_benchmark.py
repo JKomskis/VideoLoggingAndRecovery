@@ -109,7 +109,8 @@ ITERATIONS = 1
 if __name__ == '__main__':
     LoggingManager().setEffectiveLevel(LoggingLevel.DEBUG)
 
-    data_df = pd.DataFrame(columns=['protocol', 'num_commits', 'time'])
+    commit_df = pd.DataFrame(columns=['protocol', 'num_commits', 'time'])
+    abort_df = pd.DataFrame(columns=['protocol', 'num_aborts', 'time'])
 
     storage_engine, dataframe_metadata = setUp(True)
 
@@ -121,8 +122,8 @@ if __name__ == '__main__':
         benchmark.run_benchmark()
         print(f'{benchmark.time_measurements}')
         for result in benchmark.time_measurements:
-            data_df = data_df.append({'protocol': 'Logical', 'num_commits': i, 'time': result}, ignore_index=True)
-        data_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_commits.csv')
+            commit_df = commit_df.append({'protocol': 'Logical', 'num_commits': i, 'time': result}, ignore_index=True)
+        commit_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_commits.csv')
     for i in range(0, 3, 2):
         if i == 0:
             i = 1
@@ -130,8 +131,8 @@ if __name__ == '__main__':
         benchmark.run_benchmark()
         print(f'{benchmark.time_measurements}')
         for result in benchmark.time_measurements:
-            data_df = data_df.append({'protocol': 'Logical', 'num_aborts': i, 'time': result}, ignore_index=True)
-        data_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_aborts.csv')
+            abort_df = abort_df.append({'protocol': 'Logical', 'num_aborts': i, 'time': result}, ignore_index=True)
+        abort_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_aborts.csv')
 
     # Hybrid logging
     for i in range(0, 3, 2):
@@ -141,8 +142,8 @@ if __name__ == '__main__':
         benchmark.run_benchmark()
         print(f'{benchmark.time_measurements}')
         for result in benchmark.time_measurements:
-            data_df = data_df.append({'protocol': 'Hybrid', 'num_commits': i, 'time': result}, ignore_index=True)
-        data_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_commits.csv')
+            commit_df = commit_df.append({'protocol': 'Hybrid', 'num_commits': i, 'time': result}, ignore_index=True)
+        commit_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_commits.csv')
     for i in range(0, 3, 2):
         if i == 0:
             i = 1
@@ -150,8 +151,8 @@ if __name__ == '__main__':
         benchmark.run_benchmark()
         print(f'{benchmark.time_measurements}')
         for result in benchmark.time_measurements:
-            data_df = data_df.append({'protocol': 'Hybrid', 'num_aborts': i, 'time': result}, ignore_index=True)
-        data_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_aborts.csv')
+            abort_df = abort_df.append({'protocol': 'Hybrid', 'num_aborts': i, 'time': result}, ignore_index=True)
+        abort_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_aborts.csv')
     tearDown()
 
     storage_engine, dataframe_metadata = setUp(False)
@@ -164,8 +165,8 @@ if __name__ == '__main__':
         benchmark.run_benchmark()
         print(f'{benchmark.time_measurements}')
         for result in benchmark.time_measurements:
-            data_df = data_df.append({'protocol': 'Physical', 'num_commits': i, 'time': result}, ignore_index=True)
-        data_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_commits.csv')
+            commit_df = commit_df.append({'protocol': 'Physical', 'num_commits': i, 'time': result}, ignore_index=True)
+        commit_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_commits.csv')
     for i in range(0, 1, 2):
         if i == 0:
             i = 1
@@ -173,7 +174,7 @@ if __name__ == '__main__':
         benchmark.run_benchmark()
         print(f'{benchmark.time_measurements}')
         for result in benchmark.time_measurements:
-            data_df = data_df.append({'protocol': 'Physical', 'num_aborts': i, 'time': result}, ignore_index=True)
-        data_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_aborts.csv')
+            abort_df = abort_df.append({'protocol': 'Physical', 'num_aborts': i, 'time': result}, ignore_index=True)
+        abort_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_aborts.csv')
 
     tearDown()
