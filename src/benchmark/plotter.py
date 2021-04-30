@@ -11,6 +11,8 @@ from src.config.constants import BENCHMARK_DATA_FOLDER
 
 benchmark_labels = {
     'num_updates': 'Number of Updates',
+    'percent_updated': 'Percent of Video Updated',
+    'video_length_update': 'Length of Video Updated (s)',
     'num_commits': 'Number of Committed Transactions',
     'num_aborts': 'Number of Aborted Transactions'
 }
@@ -28,6 +30,7 @@ def plot(benchmark_name: str, x_label: str):
     line_plot.set_xlabel(x_label, fontsize = 18)
     line_plot.set_ylabel('Time (s)', fontsize = 18)
     plt.tight_layout()
+    line_plot.legend(title = 'Protocol')
     sns.despine()
     plt.savefig(f'{BENCHMARK_DATA_FOLDER}/{benchmark_name}_time.png')
     data_df = pd.read_csv(f'{BENCHMARK_DATA_FOLDER}/{benchmark_name}_disk.csv')
