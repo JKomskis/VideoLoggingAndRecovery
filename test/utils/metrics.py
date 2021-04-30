@@ -1,3 +1,4 @@
+import os
 import time
 import timeit
 
@@ -35,3 +36,12 @@ def benchmark(func, n_iterations=100):
     LoggingManager().log(f"Benchmark {n_iterations} iterations of {func.__name__}", LoggingLevel.DEBUG)
     execution_time = timeit.timeit(func, number=n_iterations)
     LoggingManager().log(f"Average runtime of {func.__name__}: {execution_time:.6f} s", LoggingLevel.INFO)
+
+def get_dir_size(dir):
+    total_size = 0
+    for dirpath, _, filenames in os.walk(dir):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            if not os.path.islink(fp):
+                total_size += os.path.getsize(fp)
+    return total_size

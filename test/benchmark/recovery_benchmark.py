@@ -120,7 +120,8 @@ if __name__ == '__main__':
             i = 1
         benchmark = RecoveryBenchmarkPartitioned(True, i, False, ITERATIONS, storage_engine, dataframe_metadata)
         benchmark.run_benchmark()
-        print(f'{benchmark.time_measurements}')
+        print(f'Timing: {benchmark.time_measurements}')
+        print(f'Disk: {benchmark.disk_measurement}')
         for result in benchmark.time_measurements:
             commit_df = commit_df.append({'protocol': 'Logical', 'num_commits': i, 'time': result}, ignore_index=True)
         commit_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_commits.csv')
@@ -129,7 +130,8 @@ if __name__ == '__main__':
             i = 1
         benchmark = RecoveryBenchmarkPartitioned(False, i, False, ITERATIONS, storage_engine, dataframe_metadata)
         benchmark.run_benchmark()
-        print(f'{benchmark.time_measurements}')
+        print(f'Timing: {benchmark.time_measurements}')
+        print(f'Disk: {benchmark.disk_measurement}')
         for result in benchmark.time_measurements:
             abort_df = abort_df.append({'protocol': 'Logical', 'num_aborts': i, 'time': result}, ignore_index=True)
         abort_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_aborts.csv')
@@ -140,7 +142,8 @@ if __name__ == '__main__':
             i = 1
         benchmark = RecoveryBenchmarkPartitioned(True, i, True, ITERATIONS, storage_engine, dataframe_metadata)
         benchmark.run_benchmark()
-        print(f'{benchmark.time_measurements}')
+        print(f'Timing: {benchmark.time_measurements}')
+        print(f'Disk: {benchmark.disk_measurement}')
         for result in benchmark.time_measurements:
             commit_df = commit_df.append({'protocol': 'Hybrid', 'num_commits': i, 'time': result}, ignore_index=True)
         commit_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_commits.csv')
@@ -149,7 +152,8 @@ if __name__ == '__main__':
             i = 1
         benchmark = RecoveryBenchmarkPartitioned(False, i, True, ITERATIONS, storage_engine, dataframe_metadata)
         benchmark.run_benchmark()
-        print(f'{benchmark.time_measurements}')
+        print(f'Timing: {benchmark.time_measurements}')
+        print(f'Disk: {benchmark.disk_measurement}')
         for result in benchmark.time_measurements:
             abort_df = abort_df.append({'protocol': 'Hybrid', 'num_aborts': i, 'time': result}, ignore_index=True)
         abort_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_aborts.csv')
@@ -163,7 +167,8 @@ if __name__ == '__main__':
             i = 1
         benchmark = RecoveryBenchmark(True, i, ITERATIONS, storage_engine, dataframe_metadata)
         benchmark.run_benchmark()
-        print(f'{benchmark.time_measurements}')
+        print(f'Timing: {benchmark.time_measurements}')
+        print(f'Disk: {benchmark.disk_measurement}')
         for result in benchmark.time_measurements:
             commit_df = commit_df.append({'protocol': 'Physical', 'num_commits': i, 'time': result}, ignore_index=True)
         commit_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_commits.csv')
@@ -172,7 +177,8 @@ if __name__ == '__main__':
             i = 1
         benchmark = RecoveryBenchmark(False, i, ITERATIONS, storage_engine, dataframe_metadata)
         benchmark.run_benchmark()
-        print(f'{benchmark.time_measurements}')
+        print(f'Timing: {benchmark.time_measurements}')
+        print(f'Disk: {benchmark.disk_measurement}')
         for result in benchmark.time_measurements:
             abort_df = abort_df.append({'protocol': 'Physical', 'num_aborts': i, 'time': result}, ignore_index=True)
         abort_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_aborts.csv')
