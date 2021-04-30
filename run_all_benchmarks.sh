@@ -1,0 +1,4 @@
+python test/benchmark/num_updates_benchmark.py
+python test/benchmark/percent_updated_benchmark.py
+python test/benchmark/recovery_benchmark.py
+python test/benchmark/video_length_update_benchmark.py

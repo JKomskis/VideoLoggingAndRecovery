@@ -104,7 +104,7 @@ class RecoveryBenchmark(AbstractBenchmark):
         self.txn_mgr.recover()
 
 
-ITERATIONS = 1
+ITERATIONS = 5
 
 if __name__ == '__main__':
     LoggingManager().setEffectiveLevel(LoggingLevel.DEBUG)
@@ -115,7 +115,7 @@ if __name__ == '__main__':
     storage_engine, dataframe_metadata = setUp(True)
 
     # Logical logging
-    for i in range(0, 3, 2):
+    for i in range(0, 9, 2):
         if i == 0:
             i = 1
         benchmark = RecoveryBenchmarkPartitioned(True, i, False, ITERATIONS, storage_engine, dataframe_metadata)
@@ -125,7 +125,7 @@ if __name__ == '__main__':
         for result in benchmark.time_measurements:
             commit_df = commit_df.append({'protocol': 'Logical', 'num_commits': i, 'time': result}, ignore_index=True)
         commit_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_commits.csv')
-    for i in range(0, 3, 2):
+    for i in range(0, 9, 2):
         if i == 0:
             i = 1
         benchmark = RecoveryBenchmarkPartitioned(False, i, False, ITERATIONS, storage_engine, dataframe_metadata)
@@ -137,7 +137,7 @@ if __name__ == '__main__':
         abort_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_aborts.csv')
 
     # Hybrid logging
-    for i in range(0, 3, 2):
+    for i in range(0, 9, 2):
         if i == 0:
             i = 1
         benchmark = RecoveryBenchmarkPartitioned(True, i, True, ITERATIONS, storage_engine, dataframe_metadata)
@@ -147,7 +147,7 @@ if __name__ == '__main__':
         for result in benchmark.time_measurements:
             commit_df = commit_df.append({'protocol': 'Hybrid', 'num_commits': i, 'time': result}, ignore_index=True)
         commit_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_commits.csv')
-    for i in range(0, 3, 2):
+    for i in range(0, 9, 2):
         if i == 0:
             i = 1
         benchmark = RecoveryBenchmarkPartitioned(False, i, True, ITERATIONS, storage_engine, dataframe_metadata)
@@ -162,20 +162,20 @@ if __name__ == '__main__':
     storage_engine, dataframe_metadata = setUp(False)
 
     # Physical logging
-    for i in range(0, 3, 2):
+    for i in range(0, 9, 2):
         if i == 0:
             i = 1
-        benchmark = RecoveryBenchmark(True, i, ITERATIONS, storage_engine, dataframe_metadata)
+        benchmark = RecoveryBenchmark(True, i, 1, storage_engine, dataframe_metadata)
         benchmark.run_benchmark()
         print(f'Timing: {benchmark.time_measurements}')
         print(f'Disk: {benchmark.disk_measurement}')
         for result in benchmark.time_measurements:
             commit_df = commit_df.append({'protocol': 'Physical', 'num_commits': i, 'time': result}, ignore_index=True)
         commit_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_commits.csv')
-    for i in range(0, 1, 2):
+    for i in range(0, 9, 2):
         if i == 0:
             i = 1
-        benchmark = RecoveryBenchmark(False, i, ITERATIONS, storage_engine, dataframe_metadata)
+        benchmark = RecoveryBenchmark(False, i, 1, storage_engine, dataframe_metadata)
         benchmark.run_benchmark()
         print(f'Timing: {benchmark.time_measurements}')
         print(f'Disk: {benchmark.disk_measurement}')
