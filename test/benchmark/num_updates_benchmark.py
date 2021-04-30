@@ -116,7 +116,7 @@ if __name__ == '__main__':
         for result in benchmark.time_measurements:
             time_df = time_df.append({'protocol': 'Logical', 'num_updates': i, 'time': result}, ignore_index=True)
         time_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_updates_time.csv')
-        disk_df = disk_df.append({'protocol': 'Logical', 'num_updates': i, 'time': benchmark.disk_measurement}, ignore_index=True)
+        disk_df = disk_df.append({'protocol': 'Logical', 'num_updates': i, 'disk': benchmark.disk_measurement}, ignore_index=True)
         disk_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_updates_disk.csv')
 
     # Hybrid logging
@@ -130,7 +130,7 @@ if __name__ == '__main__':
         for result in benchmark.time_measurements:
             time_df = time_df.append({'protocol': 'Hybrid', 'num_updates': i, 'time': result}, ignore_index=True)
         time_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_updates_time.csv')
-        disk_df = disk_df.append({'protocol': 'Hybrid', 'num_updates': i, 'time': benchmark.disk_measurement}, ignore_index=True)
+        disk_df = disk_df.append({'protocol': 'Hybrid', 'num_updates': i, 'disk': benchmark.disk_measurement}, ignore_index=True)
         disk_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_updates_disk.csv')
     tearDown()
 
@@ -146,6 +146,6 @@ if __name__ == '__main__':
         for result in benchmark.time_measurements:
             time_df = time_df.append({'protocol': 'Physical', 'num_updates': i, 'time': result}, ignore_index=True)
         time_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_updates_time.csv')
-        disk_df = disk_df.append({'protocol': 'Physical', 'num_updates': i, 'time': benchmark.disk_measurement}, ignore_index=True)
+        disk_df = disk_df.append({'protocol': 'Physical', 'num_updates': i, 'disk': benchmark.disk_measurement}, ignore_index=True)
         disk_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_updates_disk.csv')
     tearDown()
