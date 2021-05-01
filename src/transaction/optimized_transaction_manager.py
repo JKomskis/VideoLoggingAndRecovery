@@ -21,7 +21,7 @@ from src.utils.logging_manager import LoggingLevel, LoggingManager
 from src.readers.partitioned_petastorm_reader import GroupDoesNotExistException
 
 class OptimizedTransactionManager():
-    def __init__(self, storage_engine_passed=None, log_manager_passed=None, buffer_manager_passed=None, force_physical_logging=False):
+    def __init__(self, storage_engine_passed=None, log_manager_passed=None, buffer_manager_passed=None, force_physical_logging=False, force_pphysical_logging=False):
         if storage_engine_passed != None:
             self.storage_engine = storage_engine_passed
         else:
@@ -38,6 +38,7 @@ class OptimizedTransactionManager():
             self.buffer_manager = BufferManager(200, self.storage_engine)
 
         self.force_physical_logging = force_physical_logging
+        self.force_pphysical_logging = force_pphysical_logging
         self.opencv_update_processor = OpenCVUpdateProcessor()
         self._txn_table = {}
         self._txn_counter_file_path = f'{TRANSACTION_STORAGE_FOLDER}/txn_counter'
@@ -108,13 +109,52 @@ class OptimizedTransactionManager():
 
     def update_object(self, txn_id: int, dataframe_metadata: DataFrameMetadata, update_arguments: ObjectUpdateArguments):
         update_lsn = -1
-        if (not self.force_physical_logging) and self.opencv_update_processor.is_reversible(update_arguments):
+        if self.force_pphysical_logging:
+            # Do pure physical logging
+            # Save before and after images of group dataframes
+            file_version = self._txn_table[txn_id].get_file_version(dataframe_metadata.file_url)
+            self._txn_table[txn_id].increment_file_version(dataframe_metadata.file_url)
+            before_image_base_path = f'{self.get_transaction_directory(txn_id)}/{dataframe_metadata.file_url}.v{file_version}_old'
+            os.makedirs(os.path.dirname(before_image_base_path), exist_ok=True)
+            after_image_base_path = f'{self.get_transaction_directory(txn_id)}/{dataframe_metadata.file_url}.v{file_version}_new'
+            os.makedirs(os.path.dirname(after_image_base_path), exist_ok=True)
+
+            start_group = int(update_arguments.start_frame // BATCH_SIZE)
+            end_group = int(update_arguments.end_frame // BATCH_SIZE)
+            curr_group = start_group
+            while curr_group <= end_group:
+                try:
+                    batch = self.buffer_manager.read_slot(dataframe_metadata, curr_group)
+
+                    old_df = pd.DataFrame()
+                    new_df = pd.DataFrame()
+                    for index, row in batch.frames.iterrows():
+                        if update_arguments.start_frame <= row.id and update_arguments.end_frame >= row.id:
+                            old_df = old_df.append(row, ignore_index=True)
+                            
+                            row.data = self.opencv_update_processor.apply(row.data, update_arguments)
+                            new_df = new_df.append(row, ignore_index=True)
+
+                    # Save physically to transaction's folder
+                    before_image_file_path = f'{before_image_base_path}_{curr_group}'
+                    old_df.to_pickle(before_image_file_path)
+                    after_image_file_path = f'{after_image_base_path}_{curr_group}'
+                    new_df.to_pickle(after_image_file_path)
+
+                    curr_group = curr_group + 1
+                except GroupDoesNotExistException as e:
+                    break
+            
+            # Write log record to file
+            update_lsn = self.log_manager.log_pphysical_update_record(txn_id, dataframe_metadata, before_image_base_path, after_image_base_path)
+
+        elif (not self.force_physical_logging) and self.opencv_update_processor.is_reversible(update_arguments):
             # Do logical logging
             # Write log record to file
             update_lsn = self.log_manager.log_logical_update_record(txn_id, dataframe_metadata, update_arguments)
 
         else:
-            # Fallback to physical logging
+            # Fallback to hybrid logging
             # Save before image deltas of group dataframes
             file_version = self._txn_table[txn_id].get_file_version(dataframe_metadata.file_url)
             self._txn_table[txn_id].increment_file_version(dataframe_metadata.file_url)
