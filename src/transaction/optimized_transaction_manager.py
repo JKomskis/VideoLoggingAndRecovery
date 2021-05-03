@@ -35,7 +35,7 @@ class OptimizedTransactionManager():
         if buffer_manager_passed != None:
             self.buffer_manager = buffer_manager_passed
         else:
-            self.buffer_manager = BufferManager(200, self.storage_engine)
+            self.buffer_manager = BufferManager(100, self.storage_engine)
 
         self.force_physical_logging = force_physical_logging
         self.force_pphysical_logging = force_pphysical_logging

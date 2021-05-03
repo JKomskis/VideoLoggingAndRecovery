@@ -24,12 +24,13 @@ from test.benchmark.abstract_benchmark import AbstractBenchmark
 from test.benchmark.benchmark_environment import setUp, tearDown
 
 class NumUpdatesBenchmarkPartitioned(AbstractBenchmark):
-    def __init__(self, num_updates, hybrid_protocol, repetitions, storage_engine, dataframe_metadata):
+    def __init__(self, num_updates, hybrid_protocol, repetitions, storage_engine, dataframe_metadata, pphysical_logging=False):
         super().__init__(repetitions=repetitions)
         self.num_updates = num_updates
         self.hybrid_protocol = hybrid_protocol
         self.storage_engine = storage_engine
         self.dataframe_metadata = dataframe_metadata
+        self.pphysical_logging = pphysical_logging
 
     def _setUp(self):
         clear_petastorm_storage_folder()
@@ -42,7 +43,8 @@ class NumUpdatesBenchmarkPartitioned(AbstractBenchmark):
         self.txn_mgr = OptimizedTransactionManager(storage_engine_passed=self.storage_engine,
                                                     log_manager_passed=self.log_mgr,
                                                     buffer_manager_passed=self.buffer_mgr,
-                                                    force_physical_logging=self.hybrid_protocol)
+                                                    force_physical_logging=self.hybrid_protocol,
+                                                    force_pphysical_logging=self.pphysical_logging)
 
         self.update_operations = [ObjectUpdateArguments('invert_color', 0, 4499) for i in range(self.num_updates)]
 
@@ -119,6 +121,20 @@ if __name__ == '__main__':
         time_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_updates_time.csv')
         disk_df = disk_df.append({'protocol': 'Hybrid', 'num_updates': i, 'disk': benchmark.disk_measurement}, ignore_index=True)
         disk_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_updates_disk.csv')
+    
+    # Physical logging (with buffering)
+    for i in range(0, 9, 2):
+        if i == 0:
+            i = 1
+        benchmark = NumUpdatesBenchmarkPartitioned(i, True, 5, storage_engine, dataframe_metadata, pphysical_logging=True)
+        benchmark.run_benchmark()
+        print(f'Timing: {benchmark.time_measurements}')
+        print(f'Disk: {benchmark.disk_measurement}')
+        for result in benchmark.time_measurements:
+            time_df = time_df.append({'protocol': 'Physical', 'num_updates': i, 'time': result}, ignore_index=True)
+        time_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_updates_time.csv')
+        disk_df = disk_df.append({'protocol': 'Physical', 'num_updates': i, 'disk': benchmark.disk_measurement}, ignore_index=True)
+        disk_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_updates_disk.csv')
     tearDown()
 
     # Physical logging
@@ -131,8 +147,8 @@ if __name__ == '__main__':
         print(f'Timing: {benchmark.time_measurements}')
         print(f'Disk: {benchmark.disk_measurement}')
         for result in benchmark.time_measurements:
-            time_df = time_df.append({'protocol': 'Physical', 'num_updates': i, 'time': result}, ignore_index=True)
+            time_df = time_df.append({'protocol': 'Physical (Unbuffered)', 'num_updates': i, 'time': result}, ignore_index=True)
         time_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_updates_time.csv')
-        disk_df = disk_df.append({'protocol': 'Physical', 'num_updates': i, 'disk': benchmark.disk_measurement}, ignore_index=True)
+        disk_df = disk_df.append({'protocol': 'Physical (Unbuffered)', 'num_updates': i, 'disk': benchmark.disk_measurement}, ignore_index=True)
         disk_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_updates_disk.csv')
     tearDown()
