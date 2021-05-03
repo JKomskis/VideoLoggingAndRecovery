@@ -26,9 +26,10 @@ storage_engine = None
 dataframe_metadata = None
 
 class VideoLengthUpdateBenchmarkPartitioned(AbstractBenchmark):
-    def __init__(self, len_sec, hybrid_protocol, repetitions):
+    def __init__(self, len_sec, hybrid_protocol, repetitions, pphysical_logging=False):
         super().__init__(repetitions=repetitions)
         self.hybrid_protocol = hybrid_protocol
+        self.pphysical_logging = pphysical_logging
     
     def _setUp(self):
         clear_petastorm_storage_folder()
@@ -41,7 +42,8 @@ class VideoLengthUpdateBenchmarkPartitioned(AbstractBenchmark):
         self.txn_mgr = OptimizedTransactionManager(storage_engine_passed=storage_engine,
                                                     log_manager_passed=self.log_mgr,
                                                     buffer_manager_passed=self.buffer_mgr,
-                                                    force_physical_logging=self.hybrid_protocol)
+                                                    force_physical_logging=self.hybrid_protocol,
+                                                    force_pphysical_logging=self.pphysical_logging)
         
         self.update_operation = ObjectUpdateArguments('invert_color', 0, len_sec*30)
 
@@ -117,6 +119,14 @@ if __name__ == '__main__':
         for result in benchmark.time_measurements:
             data_df = data_df.append({'protocol': 'Hybrid', 'video_length': len_sec, 'time': result}, ignore_index=True)
         data_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/video_length_update.csv')
+
+        # Physical logging (with buffering)
+        benchmark = VideoLengthUpdateBenchmarkPartitioned(len_sec, True, 5, pphysical_logging=True)
+        benchmark.run_benchmark()
+        print(f'{benchmark.time_measurements}')
+        for result in benchmark.time_measurements:
+            data_df = data_df.append({'protocol': 'Physical', 'video_length': len_sec, 'time': result}, ignore_index=True)
+        data_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/video_length_update.csv')
         
         tearDown()
 
@@ -128,7 +138,7 @@ if __name__ == '__main__':
         benchmark.run_benchmark()
         print(f'{benchmark.time_measurements}')
         for result in benchmark.time_measurements:
-            data_df = data_df.append({'protocol': 'Physical', 'video_length': len_sec, 'time': result}, ignore_index=True)
+            data_df = data_df.append({'protocol': 'Physical (Unbuffered)', 'video_length': len_sec, 'time': result}, ignore_index=True)
         data_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/video_length_update.csv')
         
         tearDown()

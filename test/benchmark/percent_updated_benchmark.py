@@ -24,12 +24,13 @@ from test.benchmark.abstract_benchmark import AbstractBenchmark
 from test.benchmark.benchmark_environment import setUp, tearDown
 
 class PercentUpdatedBenchmarkPartitioned(AbstractBenchmark):
-    def __init__(self, percent_updated, hybrid_protocol, repetitions, storage_engine, dataframe_metadata):
+    def __init__(self, percent_updated, hybrid_protocol, repetitions, storage_engine, dataframe_metadata, pphysical_logging=False):
         super().__init__(repetitions=repetitions)
         self.percent_updated = percent_updated
         self.hybrid_protocol = hybrid_protocol
         self.storage_engine = storage_engine
         self.dataframe_metadata = dataframe_metadata
+        self.pphysical_logging = pphysical_logging
     
     def _setUp(self):
         clear_petastorm_storage_folder()
@@ -42,7 +43,8 @@ class PercentUpdatedBenchmarkPartitioned(AbstractBenchmark):
         self.txn_mgr = OptimizedTransactionManager(storage_engine_passed=self.storage_engine,
                                                     log_manager_passed=self.log_mgr,
                                                     buffer_manager_passed=self.buffer_mgr,
-                                                    force_physical_logging=self.hybrid_protocol)
+                                                    force_physical_logging=self.hybrid_protocol,
+                                                    force_pphysical_logging=self.pphysical_logging)
         
         self.update_operation = ObjectUpdateArguments('invert_color', 0, int(4499*(self.percent_updated/100)))
 
@@ -106,6 +108,15 @@ if __name__ == '__main__':
         for result in benchmark.time_measurements:
             data_df = data_df.append({'protocol': 'Hybrid', 'percent_updated': i, 'time': result}, ignore_index=True)
         data_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/percent_updated.csv')
+    
+    # Physical logging (with buffering)
+    for i in range(10, 101, 10):
+        benchmark = PercentUpdatedBenchmarkPartitioned(i, True, 5, storage_engine, dataframe_metadata, pphysical_logging=True)
+        benchmark.run_benchmark()
+        print(f'{benchmark.time_measurements}')
+        for result in benchmark.time_measurements:
+            data_df = data_df.append({'protocol': 'Physical', 'percent_updated': i, 'time': result}, ignore_index=True)
+        data_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/percent_updated.csv')
     tearDown()
 
     # Physical logging
@@ -115,6 +126,6 @@ if __name__ == '__main__':
         benchmark.run_benchmark()
         print(f'{benchmark.time_measurements}')
         for result in benchmark.time_measurements:
-            data_df = data_df.append({'protocol': 'Physical', 'percent_updated': i, 'time': result}, ignore_index=True)
+            data_df = data_df.append({'protocol': 'Physical (Unbuffered)', 'percent_updated': i, 'time': result}, ignore_index=True)
         data_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/percent_updated.csv')
     tearDown()

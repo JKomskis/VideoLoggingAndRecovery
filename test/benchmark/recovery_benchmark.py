@@ -25,13 +25,14 @@ from test.benchmark.abstract_benchmark import AbstractBenchmark
 from test.benchmark.benchmark_environment import setUp, tearDown
 
 class RecoveryBenchmarkPartitioned(AbstractBenchmark):
-    def __init__(self, should_commit, num_updates, hybrid_protocol, repetitions, storage_engine, dataframe_metadata):
+    def __init__(self, should_commit, num_updates, hybrid_protocol, repetitions, storage_engine, dataframe_metadata, pphysical_logging=False):
         super().__init__(repetitions=repetitions)
         self.should_commit = should_commit
         self.num_updates = num_updates
         self.hybrid_protocol = hybrid_protocol
         self.storage_engine = storage_engine
         self.dataframe_metadata = dataframe_metadata
+        self.pphysical_logging = pphysical_logging
 
     def _setUp(self):
         clear_petastorm_storage_folder()
@@ -44,7 +45,8 @@ class RecoveryBenchmarkPartitioned(AbstractBenchmark):
         self.txn_mgr = OptimizedTransactionManager(storage_engine_passed=self.storage_engine,
                                                     log_manager_passed=self.log_mgr,
                                                     buffer_manager_passed=self.buffer_mgr,
-                                                    force_physical_logging=self.hybrid_protocol)
+                                                    force_physical_logging=self.hybrid_protocol,
+                                                    force_pphysical_logging=self.pphysical_logging)
 
         txn_id = self.txn_mgr.begin_transaction()
         for update_operation in [
@@ -107,7 +109,7 @@ class RecoveryBenchmark(AbstractBenchmark):
 ITERATIONS = 5
 
 if __name__ == '__main__':
-    LoggingManager().setEffectiveLevel(LoggingLevel.DEBUG)
+    LoggingManager().setEffectiveLevel(LoggingLevel.INFO)
 
     commit_df = pd.DataFrame(columns=['protocol', 'num_commits', 'time'])
     abort_df = pd.DataFrame(columns=['protocol', 'num_aborts', 'time'])
@@ -157,6 +159,28 @@ if __name__ == '__main__':
         for result in benchmark.time_measurements:
             abort_df = abort_df.append({'protocol': 'Hybrid', 'num_aborts': i, 'time': result}, ignore_index=True)
         abort_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_aborts.csv')
+
+    # Physical logging (with buffering)
+    for i in range(0, 9, 2):
+        if i == 0:
+            i = 1
+        benchmark = RecoveryBenchmarkPartitioned(True, i, True, ITERATIONS, storage_engine, dataframe_metadata, pphysical_logging=True)
+        benchmark.run_benchmark()
+        print(f'Timing: {benchmark.time_measurements}')
+        print(f'Disk: {benchmark.disk_measurement}')
+        for result in benchmark.time_measurements:
+            commit_df = commit_df.append({'protocol': 'Physical', 'num_commits': i, 'time': result}, ignore_index=True)
+        commit_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_commits.csv')
+    for i in range(0, 9, 2):
+        if i == 0:
+            i = 1
+        benchmark = RecoveryBenchmarkPartitioned(False, i, True, ITERATIONS, storage_engine, dataframe_metadata, pphysical_logging=True)
+        benchmark.run_benchmark()
+        print(f'Timing: {benchmark.time_measurements}')
+        print(f'Disk: {benchmark.disk_measurement}')
+        for result in benchmark.time_measurements:
+            abort_df = abort_df.append({'protocol': 'Physical', 'num_aborts': i, 'time': result}, ignore_index=True)
+        abort_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_aborts.csv')
     tearDown()
 
     storage_engine, dataframe_metadata = setUp(False)
@@ -170,7 +194,7 @@ if __name__ == '__main__':
         print(f'Timing: {benchmark.time_measurements}')
         print(f'Disk: {benchmark.disk_measurement}')
         for result in benchmark.time_measurements:
-            commit_df = commit_df.append({'protocol': 'Physical', 'num_commits': i, 'time': result}, ignore_index=True)
+            commit_df = commit_df.append({'protocol': 'Physical (Unbuffered)', 'num_commits': i, 'time': result}, ignore_index=True)
         commit_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_commits.csv')
     for i in range(0, 9, 2):
         if i == 0:
@@ -180,7 +204,7 @@ if __name__ == '__main__':
         print(f'Timing: {benchmark.time_measurements}')
         print(f'Disk: {benchmark.disk_measurement}')
         for result in benchmark.time_measurements:
-            abort_df = abort_df.append({'protocol': 'Physical', 'num_aborts': i, 'time': result}, ignore_index=True)
+            abort_df = abort_df.append({'protocol': 'Physical (Unbuffered)', 'num_aborts': i, 'time': result}, ignore_index=True)
         abort_df.to_csv(f'{BENCHMARK_DATA_FOLDER}/num_aborts.csv')
 
     tearDown()
